@@ -1,4 +1,7 @@
-use std::{process::id, sync::{Arc, Mutex}};
+use std::{
+    process::id,
+    sync::{Arc, Mutex},
+};
 
 use crate::{frequency::Frequency, MediBotPersistance};
 use redis::{Commands, Connection, RedisError};
@@ -40,11 +43,9 @@ impl Medication {
             &[("medicine".to_string(), self.medicine.to_string())],
         );
 
-        con.zadd(id, member, score);
+        // con.zadd(id, member, score);
 
-        con.sadd()
-
-
+        // con.sadd()
 
         Ok(())
     }
