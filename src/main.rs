@@ -1,10 +1,11 @@
-use std::sync::{Arc, Mutex};
-
-use crate::add_medication::*;
-use crate::commands::{cancel, help, start};
+use crate::{
+    add_medication::*,
+    commands::{cancel, help, start},
+};
 use dotenv::dotenv;
 use medibot::{Command, State};
 use redis::Connection;
+use std::sync::{Arc, Mutex};
 use teloxide::{
     dispatching::{
         dialogue::{self, InMemStorage},

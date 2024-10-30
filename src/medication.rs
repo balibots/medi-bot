@@ -72,6 +72,7 @@ impl Medication {
 }
 
 /*
+  PLAN:
     SET: medi:name:id { id, name, medicine, dosage, frequencyH, last_taken}
     ZSET: triggers: [ medi:id, 460000 (ts); ...]
     SET: user:user_id  [medi:id, ...]

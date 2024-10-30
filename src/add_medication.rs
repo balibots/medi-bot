@@ -5,6 +5,8 @@ use teloxide::prelude::*;
 use teloxide::types::{Message, ParseMode};
 use teloxide::Bot;
 
+const ERROR_NO_TEXT: &str = "Sorry, couldn't understand that - please send a text message.";
+
 pub async fn start_add_medication(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
     bot.send_message(
         msg.chat.id,
@@ -26,11 +28,7 @@ pub async fn receive_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handl
                 .await?;
         }
         None => {
-            bot.send_message(
-                msg.chat.id,
-                "Sorry, couldn't understand that - please send a text message.",
-            )
-            .await?;
+            bot.send_message(msg.chat.id, ERROR_NO_TEXT).await?;
         }
     }
 
@@ -54,11 +52,7 @@ pub async fn receive_medicine(
                 .await?;
         }
         None => {
-            bot.send_message(
-                msg.chat.id,
-                "Sorry, couldn't understand that - please send a text message.",
-            )
-            .await?;
+            bot.send_message(msg.chat.id, ERROR_NO_TEXT).await?;
         }
     }
 
@@ -85,11 +79,7 @@ pub async fn receive_dosage(
                 .await?;
         }
         None => {
-            bot.send_message(
-                msg.chat.id,
-                "Sorry, couldn't understand that - please send a text message.",
-            )
-            .await?;
+            bot.send_message(msg.chat.id, ERROR_NO_TEXT).await?;
         }
     }
 
@@ -130,13 +120,14 @@ pub async fn receive_frequency(
             }
         }
         None => {
-            bot.send_message(msg.chat.id, "Send me plain text.").await?;
+            bot.send_message(msg.chat.id, ERROR_NO_TEXT).await?;
         }
     }
 
     Ok(())
 }
 
+// TODO temp, just so we dont go through the flow for now
 pub async fn test_add(cfg: ConfigParameters, bot: Bot, msg: Message) -> HandlerResult {
     let name = "xavi".to_string();
     let medicine = "nurofen".to_string();
@@ -146,7 +137,7 @@ pub async fn test_add(cfg: ConfigParameters, bot: Bot, msg: Message) -> HandlerR
 
     medication.save(cfg.redis_connection).unwrap();
 
-    bot.send_message(msg.chat.id, "tested the add / save function")
+    bot.send_message(msg.chat.id, "dev: tested the add / save function")
         .await?;
     Ok(())
 }

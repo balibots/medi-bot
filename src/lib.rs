@@ -29,7 +29,7 @@ pub enum Command {
     Start,
     #[command(description = "display this text.")]
     Help,
-    #[command(description = "add a new medication regimen.")]
+    #[command(description = "add a new medication plan.")]
     AddMedication,
     #[command(description = "cancel the current operation.")]
     Cancel,
