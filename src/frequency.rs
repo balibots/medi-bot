@@ -64,20 +64,15 @@ impl Frequency {
                     None => None,
                 }
             }
-            Some(token) if matches!(token.parse::<usize>(), Ok(_)) => {
+            Some(token) if token.parse::<usize>().is_ok() => {
                 let number = token.parse::<usize>().unwrap();
-
                 let rest_tokens: Vec<&str> = split.collect();
 
-                let last_token = rest_tokens.last().unwrap();
-
-                if *rest_tokens.first().unwrap() == "times" {
-                    if last_token.matches("day").count() > 0 {
-                        return Some(Frequency {
-                            hours: (24f64 / number as f64).floor() as usize,
-                            start_time: None,
-                        });
-                    }
+                if rest_tokens.first() == Some(&"times") && rest_tokens.last() == Some(&"day") {
+                    return Some(Frequency {
+                        hours: (24f64 / number as f64).floor() as usize,
+                        start_time: None,
+                    });
                 }
 
                 None
