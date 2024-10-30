@@ -1,6 +1,6 @@
 # medibot
 
-Bot that reminds you to take your medication. Or of someone else's, naturally. Although don't take _their_ medication.
+Telegram bot that reminds you to take your medication. Or of someone else's, naturally. Although don't take _their_ medication.
 
 Anyway.
 
