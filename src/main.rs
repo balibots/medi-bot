@@ -4,8 +4,7 @@ use crate::add_medication::*;
 use crate::commands::{cancel, help, start};
 use dotenv::dotenv;
 use medibot::{Command, State};
-use medication::Medication;
-use redis::{Commands, Connection, RedisError, RedisResult};
+use redis::Connection;
 use teloxide::{
     dispatching::{
         dialogue::{self, InMemStorage},
@@ -36,7 +35,7 @@ async fn main() {
     let bot = Bot::from_env();
 
     let client = redis::Client::open("redis://127.0.0.1/").expect("Could not connect to Redis");
-    let mut redis_connection = client
+    let redis_connection = client
         .get_connection()
         .expect("Could not get a Redis connection");
 
@@ -45,32 +44,11 @@ async fn main() {
     };
 
     Dispatcher::builder(bot, schema())
-        .dependencies(dptree::deps![parameters])
+        .dependencies(dptree::deps![parameters, InMemStorage::<State>::new()])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
         .await;
-}
-
-trait MediBotPersistance {
-    fn new_medication(&mut self, m: &Medication) -> Result<(), ()>;
-    fn get_patient(&mut self, name: &str) -> Result<String, String>;
-}
-
-impl MediBotPersistance for Connection {
-    fn new_medication(&mut self, medication: &Medication) -> Result<(), ()> {
-        self.set::<&str, &str, ()>(&medication.name, &"sim")
-            .unwrap();
-        Ok(())
-    }
-
-    fn get_patient(&mut self, name: &str) -> Result<String, String> {
-        if let Ok(v) = self.get(name) {
-            Ok(v)
-        } else {
-            Err("asd".to_string())
-        }
-    }
 }
 
 fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
@@ -81,7 +59,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
             case![State::Start]
                 .branch(case![Command::Help].endpoint(help))
                 .branch(case![Command::Start].endpoint(start))
-                .branch(case![Command::AddMedication].endpoint(test_add)),
+                .branch(case![Command::AddMedication].endpoint(/*start_add_medication*/ test_add)),
         )
         .branch(case![Command::Cancel].endpoint(cancel));
 

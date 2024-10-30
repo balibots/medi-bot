@@ -8,7 +8,7 @@ use teloxide::Bot;
 pub async fn start_add_medication(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
     bot.send_message(
         msg.chat.id,
-        "💊 *Adding a medication\\.* 💊 \n\nSorry to hear\\. Please start by giving us the patient name\\.",
+        "💊 *Adding a new medication plan\\.* 💊 \n\nQuick recoveries! 🤞\\. Please start by giving me the patient name\\:",
     )
     .parse_mode(ParseMode::MarkdownV2)
     .await?;
@@ -145,6 +145,7 @@ pub async fn test_add(cfg: ConfigParameters, bot: Bot, msg: Message) -> HandlerR
     let medication = Medication::new(name, medicine, dosage, f, "123".to_string());
 
     medication.save(cfg.redis_connection).unwrap();
+
     bot.send_message(msg.chat.id, "tested the add / save function")
         .await?;
     Ok(())

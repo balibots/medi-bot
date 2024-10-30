@@ -1,12 +1,11 @@
-use std::{
-    process::id,
-    sync::{Arc, Mutex},
-};
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 
-use crate::{frequency::Frequency, MediBotPersistance};
+use crate::frequency::Frequency;
 use redis::{Commands, Connection, RedisError};
+use redis_macros::{FromRedisValue, ToRedisArgs};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, FromRedisValue, ToRedisArgs)]
 pub struct Medication {
     id: String,
     pub name: String,
@@ -38,21 +37,42 @@ impl Medication {
 
         let mut con = connection.lock().unwrap();
 
-        con.hset_multiple::<String, String, String, ()>(
-            self.name.to_string(),
-            &[("medicine".to_string(), self.medicine.to_string())],
-        );
+        match con.set::<String, &Medication, ()>(format!("medi:{}:{}", self.name, self.id), self) {
+            Ok(result) => {
+                println!("saved {:?}", result);
+            }
+            Err(error) => {
+                println!("error {:?}", error);
+            }
+        };
 
-        // con.zadd(id, member, score);
+        /* TODO: when should we do this ??? do we have a command for the first dose?
+        con.zadd(
+            "medi:trigger".to_string(), self.id, next_timestamp)
+            */
 
-        // con.sadd()
+        con.sadd::<String, String, ()>(
+            format!("medi:user:{}", self.user_id.to_string()),
+            self.id.to_string(),
+        )
+        .expect("Error adding medication to user set array");
 
         Ok(())
+    }
+
+    fn get_by_id_and_name(
+        id: &str,
+        name: &str,
+        con: Arc<Mutex<Connection>>,
+    ) -> Result<Self, RedisError> {
+        con.lock()
+            .unwrap()
+            .get::<String, Medication>(format!("medi:{}:{}", name, id))
     }
 }
 
 /*
-    MAP: medi:id { id, name, medicine, dosage, frequencyH, last_taken}
+    SET: medi:name:id { id, name, medicine, dosage, frequencyH, last_taken}
     ZSET: triggers: [ medi:id, 460000 (ts); ...]
     SET: user:user_id  [medi:id, ...]
 
@@ -65,34 +85,20 @@ impl Medication {
 #[cfg(test)]
 
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
 
-    // struct MockPersistance {
-    //     data: HashMap<String, String>,
-    // }
-
-    // impl MediBotPersistance for MockPersistance {
-    //     fn new_medication(&mut self, m: &Medication) -> Result<(), ()> {
-    //         self.data.insert(String::from(&m.name), "sim".to_string());
-    //         Ok(())
-    //     }
-    //     fn get_patient(&mut self, name: &str) -> Result<String, ()> {
-    //         if let Some(name) = self.data.get(name) {
-    //             Ok(name.to_string())
-    //         } else {
-    //             Err(())
-    //         }
-    //     }
-    // }
-
-    fn create_mock_connection() -> Connection {
+    fn create_redis_connection() -> redis::Connection {
         // creating a real connection actually
         let client = redis::Client::open("redis://127.0.0.1/").expect("Could not connect to Redis");
         let mut redis_connection = client
             .get_connection()
             .expect("Could not get a Redis connection");
+
+        redis::cmd("SELECT")
+            .arg(1) // selecting db 1 for tests to preserve data on the other one (0)
+            .exec(&mut redis_connection)
+            .unwrap();
+        redis::cmd("FLUSHDB").exec(&mut redis_connection).unwrap();
 
         redis_connection
     }
@@ -107,16 +113,24 @@ mod tests {
             "fake-id".to_string(),
         );
 
-        let mock_connection = Arc::new(Mutex::new(create_mock_connection()));
-        let res = medication.save(mock_connection.clone());
+        let redis_con = Arc::new(Mutex::new(create_redis_connection()));
+        let res = medication.save(redis_con.clone());
 
         assert!(res.is_ok());
 
-        let m: Result<String, RedisError> = mock_connection
-            .lock()
-            .unwrap()
-            .get::<&String, String>(&medication.name);
+        let saved_medication =
+            Medication::get_by_id_and_name(&medication.id, &medication.name, redis_con.clone())
+                .unwrap();
 
-        assert_eq!(m.unwrap(), "asdasd");
+        assert_eq!(saved_medication, medication);
+
+        assert_eq!(
+            redis_con
+                .lock()
+                .unwrap()
+                .scard::<String, i32>(format!("medi:user:{}", medication.user_id))
+                .unwrap(),
+            1
+        );
     }
 }

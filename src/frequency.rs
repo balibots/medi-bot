@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Frequency {
     hours: usize,
     start_time: Option<usize>,
@@ -10,6 +12,10 @@ impl Frequency {
             hours,
             start_time: None,
         }
+    }
+
+    pub fn get_hours(&self) -> usize {
+        return self.hours;
     }
 
     // every 6 hours
@@ -26,14 +32,18 @@ impl Frequency {
                         if let Ok(number) = token.parse::<usize>() {
                             // every 5
                             match second_token {
-                                Some(token) if token == "hour" || token == "hours" => Some(Frequency {
-                                    hours: number,
-                                    start_time: None,
-                                }),
-                                Some(token) if token == "day" || token == "days" => Some(Frequency {
-                                    hours: number * 24,
-                                    start_time: None,
-                                }),
+                                Some(token) if token == "hour" || token == "hours" => {
+                                    Some(Frequency {
+                                        hours: number,
+                                        start_time: None,
+                                    })
+                                }
+                                Some(token) if token == "day" || token == "days" => {
+                                    Some(Frequency {
+                                        hours: number * 24,
+                                        start_time: None,
+                                    })
+                                }
                                 Some(_) => None,
                                 None => None,
                             }
@@ -77,7 +87,6 @@ impl Frequency {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
