@@ -1,23 +1,26 @@
 use crate::{
     add_medication::*,
-    commands::{cancel, help, start},
+    add_patient::*,
+    commands::{cancel, get_all, help, start},
+    take_medicine::*,
 };
+use commands::{list_my_patients, select_patient_callback_handler};
 use dotenv::dotenv;
 use medibot::{Command, State};
 use redis::Connection;
 use std::sync::{Arc, Mutex};
 use teloxide::{
-    dispatching::{
-        dialogue::{self, InMemStorage},
-        UpdateHandler,
-    },
+    dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
     prelude::*,
 };
 
 mod add_medication;
+mod add_patient;
 mod commands;
 mod frequency;
 mod medication;
+mod patient;
+mod take_medicine;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -60,26 +63,48 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
             case![State::Start]
                 .branch(case![Command::Help].endpoint(help))
                 .branch(case![Command::Start].endpoint(start))
-                .branch(case![Command::AddMedication].endpoint(/*start_add_medication*/ test_add)),
+                .branch(case![Command::AddMedication].endpoint(start_add_medication))
+                .branch(case![Command::GetAll].endpoint(get_all))
+                .branch(case![Command::Take].endpoint(take_medicine))
+                .branch(case![Command::Patients].endpoint(list_my_patients))
+                .branch(case![Command::AddPatient].endpoint(start_add_patient)),
         )
         .branch(case![Command::Cancel].endpoint(cancel));
 
     let message_handler = Update::filter_message()
         .branch(command_handler)
         .branch(dptree::case![State::ReceiveName].endpoint(receive_name))
-        .branch(dptree::case![State::ReceiveMedicine { name }].endpoint(receive_medicine))
-        .branch(dptree::case![State::ReceiveDosage { name, medicine }].endpoint(receive_dosage))
+        .branch(dptree::case![State::ReceiveMedicine { patient_id }].endpoint(receive_medicine))
+        .branch(
+            dptree::case![State::ReceiveDosage {
+                patient_id,
+                medicine
+            }]
+            .endpoint(receive_dosage),
+        )
         .branch(
             dptree::case![State::ReceiveFrequency {
-                name,
+                patient_id,
                 medicine,
                 dosage,
             }]
             .endpoint(receive_frequency),
         )
+        .branch(dptree::case![State::ReceivePatientName].endpoint(receive_patient_name))
         .branch(dptree::endpoint(default_handler));
 
-    dialogue::enter::<Update, InMemStorage<State>, State, _>().branch(message_handler)
+    let callback_handler = Update::filter_callback_query()
+        .branch(dptree::case![State::ReceiveName].endpoint(receive_name_callback_handler))
+        .branch(dptree::case![State::TakeMedicine].endpoint(take_medicine_callback_handler))
+        .branch(
+            dptree::case![State::TakeMedicineFinal { patient_id }]
+                .endpoint(take_medicine_second_callback_handler),
+        )
+        .branch(dptree::case![State::SelectPatient].endpoint(select_patient_callback_handler));
+
+    dialogue::enter::<Update, InMemStorage<State>, State, _>()
+        .branch(callback_handler)
+        .branch(message_handler)
 }
 
 async fn default_handler(bot: Bot, _dialogue: MyDialogue, msg: Message) -> HandlerResult {

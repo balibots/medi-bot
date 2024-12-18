@@ -1,43 +1,56 @@
+use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+use teloxide::types::InlineKeyboardButton;
 
-use crate::frequency::Frequency;
+use crate::{frequency::Frequency, patient::Patient};
 use redis::{Commands, Connection, RedisError};
 use redis_macros::{FromRedisValue, ToRedisArgs};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, FromRedisValue, ToRedisArgs)]
 pub struct Medication {
     id: String,
-    pub name: String,
-    medicine: String,
-    dosage: String,
+    pub patient_id: String,
+    pub medicine: String,
+    pub dosage: String,
     frequency: Frequency,
     user_id: String,
+    pub last_taken: Option<i64>,
+    pub patient_name: Option<String>,
 }
 
 impl Medication {
     pub fn new(
-        name: String,
+        patient_id: String,
         medicine: String,
         dosage: String,
         frequency: Frequency,
         user_id: String,
     ) -> Medication {
         Medication {
-            id: uuid::Uuid::new_v4().to_string(),
-            name,
+            id: uuid::Uuid::new_v4().to_string().replace("-", ""),
+            patient_id,
             medicine,
             dosage,
             frequency,
             user_id,
+            last_taken: None,
+            patient_name: None,
         }
     }
-    pub fn save(&self, connection: Arc<Mutex<Connection>>) -> Result<(), RedisError> {
+
+    pub fn save(&mut self, connection: Arc<Mutex<Connection>>) -> Result<(), RedisError> {
         println!("saving {:?}", self);
+
+        let patient = Patient::get_by_id(&self.patient_id, connection.clone());
+
+        if let Ok(p) = patient {
+            self.patient_name = Some(p.name)
+        }
 
         let mut con = connection.lock().unwrap();
 
-        match con.set::<String, &Medication, ()>(format!("medi:{}:{}", self.name, self.id), self) {
+        match con.set::<String, &Medication, ()>(format!("medi:{}", self.id), self) {
             Ok(result) => {
                 println!("saved {:?}", result);
             }
@@ -52,30 +65,126 @@ impl Medication {
             */
 
         con.sadd::<String, String, ()>(
-            format!("medi:user:{}", self.user_id.to_string()),
+            format!("medi:patient_meds:{}", self.patient_id.to_string()),
             self.id.to_string(),
         )
-        .expect("Error adding medication to user set array");
+        .expect("Error adding medication to patient set array");
 
         Ok(())
     }
 
-    fn get_by_id_and_name(
-        id: &str,
-        name: &str,
-        con: Arc<Mutex<Connection>>,
-    ) -> Result<Self, RedisError> {
+    pub fn set_taken_now(&mut self) {
+        self.last_taken = Some(Utc::now().timestamp());
+    }
+
+    pub fn can_take(&self) -> bool {
+        if self.last_taken.is_none() {
+            true
+        } else {
+            let lt = DateTime::from_timestamp(self.last_taken.unwrap(), 0).unwrap();
+            lt + TimeDelta::hours(self.frequency.get_hours().into()) < Utc::now()
+        }
+    }
+
+    pub fn can_take_emoji(&self) -> String {
+        if self.can_take() {
+            "✅".to_string()
+        } else {
+            "🙅".to_string()
+        }
+    }
+
+    pub fn print_in_list(&self) -> String {
+        let can_take = if self.can_take() { "✅" } else { "🙅" };
+
+        format!(
+            "{} {}: {} ({}) - {}. Last taken: {}.",
+            can_take,
+            self.patient_name.clone().unwrap_or("???".to_string()),
+            self.medicine,
+            self.dosage,
+            self.frequency, // TODO implement display
+            self.print_last_taken(),
+        )
+    }
+
+    pub fn print_last_taken(&self) -> String {
+        match self.last_taken {
+            None => "Not yet".to_string(),
+            Some(ts) => {
+                let date = DateTime::from_timestamp(ts, 0).unwrap();
+                let now = Utc::now();
+                let dif = now - date;
+                match dif.num_hours() {
+                    h if h > 0 && h < 24 => format!("{} hours ago", dif.num_hours()),
+                    h if h == 0 && dif.num_minutes() > 0 => {
+                        format!("{} minutes ago", dif.num_minutes())
+                    }
+                    _ if dif.num_minutes() == 0 => format!("Just now"),
+                    _ => date.to_string(),
+                }
+            }
+        }
+    }
+
+    pub fn get_by_id(id: &str, con: Arc<Mutex<Connection>>) -> Result<Self, RedisError> {
         con.lock()
             .unwrap()
-            .get::<String, Medication>(format!("medi:{}:{}", name, id))
+            .get::<String, Medication>(format!("medi:{}", id))
+    }
+
+    pub fn get_all_by_patient_id(patient_id: &str, con: Arc<Mutex<Connection>>) -> Vec<Medication> {
+        let ids = con
+            .lock()
+            .unwrap()
+            .smembers::<String, Vec<String>>(format!("medi:patient_meds:{}", patient_id))
+            .unwrap();
+
+        ids.into_iter()
+            .map(|id| Medication::get_by_id(&id, con.clone()))
+            .filter_map(|m| if m.is_ok() { Some(m.unwrap()) } else { None })
+            .collect::<Vec<Medication>>()
+    }
+
+    pub fn generate_medication_keyboard(
+        patient_id: &str,
+        con: Arc<Mutex<Connection>>,
+    ) -> Vec<Vec<InlineKeyboardButton>> {
+        let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
+
+        let medications = Medication::get_all_by_patient_id(patient_id, con);
+
+        for medication_chunk in medications.chunks(2) {
+            let row = medication_chunk
+                .iter()
+                .map(|med| {
+                    InlineKeyboardButton::callback(
+                        format!("{} {} ({})", med.can_take_emoji(), med.medicine, med.dosage),
+                        med.id.clone(),
+                    )
+                })
+                .collect();
+
+            keyboard.push(row);
+        }
+
+        keyboard.push(vec![InlineKeyboardButton::callback(
+            "Cancel".to_string(),
+            "cancel".to_string(),
+        )]);
+
+        keyboard
     }
 }
 
 /*
   PLAN:
-    SET: medi:name:id { id, name, medicine, dosage, frequencyH, last_taken}
+    SET: medi:{id} { id, name, medicine, dosage, frequencyH, last_taken, user_id}
+    SADD: user:user_id  [medi:{id}, ...]
+
+    SADD: medi:{id}:taken [timestamps ... ]
+
     ZSET: triggers: [ medi:id, 460000 (ts); ...]
-    SET: user:user_id  [medi:id, ...]
 
     /next_dosages: map user_id set and return last_taken+freq? How to deal if it's distant past?
     /can_take <name>: map user_id, filter by name, return last_taken+freq in the past
@@ -96,7 +205,7 @@ mod tests {
             .expect("Could not get a Redis connection");
 
         redis::cmd("SELECT")
-            .arg(1) // selecting db 1 for tests to preserve data on the other one (0)
+            .arg(1) // selecting db 1 for tests to preserve data on the other one (default, 0)
             .exec(&mut redis_connection)
             .unwrap();
         redis::cmd("FLUSHDB").exec(&mut redis_connection).unwrap();
@@ -106,12 +215,15 @@ mod tests {
 
     #[test]
     fn test_create_save_medication() {
-        let medication = Medication::new(
-            "xavi".to_string(),
+        let user_id = uuid::Uuid::new_v4().to_string();
+        let patient = Patient::new("xavi".to_string(), user_id.clone());
+
+        let mut medication = Medication::new(
+            patient.id.clone(),
             "nurofen".to_string(),
             "5ml".to_string(),
             Frequency::new(3),
-            "fake-id".to_string(),
+            user_id.clone(),
         );
 
         let redis_con = Arc::new(Mutex::new(create_redis_connection()));
@@ -119,9 +231,7 @@ mod tests {
 
         assert!(res.is_ok());
 
-        let saved_medication =
-            Medication::get_by_id_and_name(&medication.id, &medication.name, redis_con.clone())
-                .unwrap();
+        let saved_medication = Medication::get_by_id(&medication.id, redis_con.clone()).unwrap();
 
         assert_eq!(saved_medication, medication);
 
@@ -129,7 +239,7 @@ mod tests {
             redis_con
                 .lock()
                 .unwrap()
-                .scard::<String, i32>(format!("medi:user:{}", medication.user_id))
+                .scard::<String, i32>(format!("medi:patient_meds:{}", patient.id))
                 .unwrap(),
             1
         );

@@ -1,20 +1,22 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Frequency {
-    hours: usize,
-    start_time: Option<usize>,
+    hours: i64,
+    start_time: Option<i64>,
 }
 
 impl Frequency {
-    pub fn new(hours: usize) -> Frequency {
-        Frequency {
-            hours,
-            start_time: None,
-        }
-    }
+    // pub fn new(hours: i64) -> Frequency {
+    //     Frequency {
+    //         hours,
+    //         start_time: None,
+    //     }
+    // }
 
-    pub fn get_hours(&self) -> usize {
+    pub fn get_hours(&self) -> i64 {
         return self.hours;
     }
 
@@ -29,7 +31,7 @@ impl Frequency {
 
                 match first_token {
                     Some(token) => {
-                        if let Ok(number) = token.parse::<usize>() {
+                        if let Ok(number) = token.parse::<i64>() {
                             // every 5
                             match second_token {
                                 Some(token) if token == "hour" || token == "hours" => {
@@ -70,7 +72,7 @@ impl Frequency {
 
                 if rest_tokens.first() == Some(&"times") && rest_tokens.last() == Some(&"day") {
                     return Some(Frequency {
-                        hours: (24f64 / number as f64).floor() as usize,
+                        hours: (24f64 / number as f64).floor() as i64,
                         start_time: None,
                     });
                 }
@@ -80,6 +82,12 @@ impl Frequency {
             Some(_) => None,
             None => None,
         }
+    }
+}
+
+impl Display for Frequency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "every {} hours ", self.hours)
     }
 }
 

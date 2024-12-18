@@ -1,30 +1,112 @@
+use std::error::Error;
+
+use crate::commands::cancel;
 use crate::frequency::Frequency;
 use crate::medication::Medication;
+use crate::patient::Patient;
 use crate::{ConfigParameters, HandlerResult, MyDialogue, State};
 use teloxide::prelude::*;
-use teloxide::types::{Message, ParseMode};
+use teloxide::types::{InlineKeyboardMarkup, Message, ParseMode};
 use teloxide::Bot;
 
 const ERROR_NO_TEXT: &str = "Sorry, couldn't understand that - please send a text message.";
 
-pub async fn start_add_medication(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
-    bot.send_message(
-        msg.chat.id,
-        "💊 *Adding a new medication plan\\.* 💊 \n\nQuick recoveries! 🤞\\. Please start by giving me the patient name\\:",
-    )
-    .parse_mode(ParseMode::MarkdownV2)
-    .await?;
+const START_FLOW_TEXT: &str =
+    "💊 *Adding a new medication plan\\.* 💊 \n\n Please start by selecting the patient\\:";
+
+pub async fn start_add_medication(
+    cfg: ConfigParameters,
+    bot: Bot,
+    dialogue: MyDialogue,
+    msg: Message,
+) -> HandlerResult {
+    let con = cfg.redis_connection;
+
+    let keyboard = Patient::generate_patient_keyboard(con.clone(), msg.chat.id.to_string(), true);
+
+    bot.send_message(msg.chat.id, START_FLOW_TEXT)
+        .reply_markup(InlineKeyboardMarkup::new(keyboard))
+        .parse_mode(ParseMode::MarkdownV2)
+        .await?;
+
     dialogue.update(State::ReceiveName).await?;
+
     Ok(())
 }
 
-pub async fn receive_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+pub async fn receive_name_callback_handler(
+    cfg: ConfigParameters,
+    bot: Bot,
+    dialogue: MyDialogue,
+    q: CallbackQuery,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    if let Some(ref patient_id) = q.data {
+        if patient_id == "cancel" {
+            cancel(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
+        } else if patient_id == "add_new" {
+            let message = q.regular_message().unwrap();
+            bot.edit_message_text(
+                message.chat.id,
+                message.id,
+                "Ok, tell me what's the new patient's name.",
+            )
+            .await?;
+            bot.send_message(
+                q.regular_message().unwrap().chat.id,
+                "Ok, tell me what's the new patient's name.",
+            )
+            .await?;
+            dialogue.update(State::ReceiveName).await?;
+        } else {
+            log::info!("You chose: {patient_id}");
+
+            bot.answer_callback_query(&q.id).await?;
+
+            let patient = Patient::get_by_id(patient_id, cfg.redis_connection).unwrap();
+
+            if let Some(message) = q.regular_message() {
+                bot.edit_message_text(
+                    message.chat.id,
+                    message.id,
+                    format!(
+                        "Great. Now what's the name of the medicine {} is going to be taking?",
+                        patient.name
+                    ),
+                )
+                .await?;
+                dialogue
+                    .update(State::ReceiveMedicine {
+                        patient_id: patient_id.into(),
+                    })
+                    .await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn receive_name(
+    cfg: ConfigParameters,
+    bot: Bot,
+    dialogue: MyDialogue,
+    msg: Message,
+) -> HandlerResult {
     match msg.text() {
         Some(text) => {
-            bot.send_message(msg.chat.id, "Great, now the name of the medicine?")
-                .await?;
+            let patient = Patient::new(text.to_string(), msg.chat.id.to_string());
+            patient.save(cfg.redis_connection).unwrap();
+
+            bot.send_message(
+                msg.chat.id,
+                "Great. Now what's the name of the medicine {} is going to be taking?",
+            )
+            .await?;
+
             dialogue
-                .update(State::ReceiveMedicine { name: text.into() })
+                .update(State::ReceiveMedicine {
+                    patient_id: patient.id,
+                })
                 .await?;
         }
         None => {
@@ -38,15 +120,16 @@ pub async fn receive_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handl
 pub async fn receive_medicine(
     bot: Bot,
     dialogue: MyDialogue,
-    name: String,
+    patient_id: String,
     msg: Message,
 ) -> HandlerResult {
     match msg.text() {
         Some(text) => {
-            bot.send_message(msg.chat.id, "What's the dosage?").await?;
+            bot.send_message(msg.chat.id, "And what's the dosage?")
+                .await?;
             dialogue
                 .update(State::ReceiveDosage {
-                    name,
+                    patient_id,
                     medicine: text.into(),
                 })
                 .await?;
@@ -62,7 +145,7 @@ pub async fn receive_medicine(
 pub async fn receive_dosage(
     bot: Bot,
     dialogue: MyDialogue,
-    (name, medicine): (String, String),
+    (patient_id, medicine): (String, String),
     msg: Message,
 ) -> HandlerResult {
     match msg.text() {
@@ -72,7 +155,7 @@ pub async fn receive_dosage(
                 .await?;
             dialogue
                 .update(State::ReceiveFrequency {
-                    name,
+                    patient_id,
                     medicine,
                     dosage: dosage.into(),
                 })
@@ -90,22 +173,14 @@ pub async fn receive_frequency(
     cfg: ConfigParameters,
     bot: Bot,
     dialogue: MyDialogue,
-    (name, medicine, dosage): (String, String, String),
+    (patient_id, medicine, dosage): (String, String, String),
     msg: Message,
 ) -> HandlerResult {
     match msg.text() {
         Some(frequency_str) => {
             if let Some(frequency) = Frequency::parse(frequency_str) {
-                let report = format!(
-                    "Got it\\. Adding a new plan of `{}` to `{}`'s plan: `{}`, `{}`\\.",
-                    medicine, name, dosage, frequency_str
-                );
-                bot.send_message(msg.chat.id, report)
-                    .parse_mode(ParseMode::MarkdownV2)
-                    .await?;
-
-                let medication = Medication::new(
-                    name,
+                let mut medication = Medication::new(
+                    patient_id,
                     medicine,
                     dosage,
                     frequency,
@@ -113,6 +188,22 @@ pub async fn receive_frequency(
                 );
 
                 medication.save(cfg.redis_connection).unwrap();
+
+                let report = format!(
+                    "
+Got it\\. Adding a new plan of `{}` to `{}`'s plan: `{}`, `{}`\\.
+
+When giving the first dose, run /take\\.
+",
+                    medication.medicine,
+                    medication.patient_name.clone().unwrap(),
+                    medication.dosage,
+                    frequency_str,
+                );
+
+                bot.send_message(msg.chat.id, report)
+                    .parse_mode(ParseMode::MarkdownV2)
+                    .await?;
 
                 dialogue.exit().await?;
             } else {
@@ -124,20 +215,5 @@ pub async fn receive_frequency(
         }
     }
 
-    Ok(())
-}
-
-// TODO temp, just so we dont go through the flow for now
-pub async fn test_add(cfg: ConfigParameters, bot: Bot, msg: Message) -> HandlerResult {
-    let name = "xavi".to_string();
-    let medicine = "nurofen".to_string();
-    let dosage = "5ml".to_string();
-    let f = Frequency::parse("every 3 hours").unwrap();
-    let medication = Medication::new(name, medicine, dosage, f, "123".to_string());
-
-    medication.save(cfg.redis_connection).unwrap();
-
-    bot.send_message(msg.chat.id, "dev: tested the add / save function")
-        .await?;
     Ok(())
 }
