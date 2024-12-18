@@ -12,7 +12,13 @@ use teloxide::{
 };
 
 pub async fn start(bot: Bot, _dialogue: MyDialogue, msg: Message) -> HandlerResult {
-    bot.send_message(msg.chat.id, "helllooooooo whatsup")
+    bot.send_message(msg.chat.id,
+        "*Welcome to 💊 MediBot\\! 💉*\nI'll remind you of when to take your meds\\.\n\n".to_owned() +
+        "Add patients and medication plans with /addmedication\\. Register an intake with /take\\.\n\n" +
+        "Type /help to see all available commands\\."
+    )
+    .parse_mode(ParseMode::MarkdownV2)
+
         .await?;
     Ok(())
 }
@@ -67,7 +73,7 @@ pub async fn list_my_patients(
 ) -> HandlerResult {
     let con = cfg.redis_connection;
 
-    let keyboard = Patient::generate_patient_keyboard(con.clone(), msg.chat.id.to_string(), false);
+    let keyboard = Patient::generate_patient_keyboard(con.clone(), msg.chat.id.to_string(), true);
 
     bot.send_message(
         msg.chat.id,
@@ -90,6 +96,15 @@ pub async fn select_patient_callback_handler(
     if let Some(ref patient_id) = q.data {
         if patient_id == "cancel" {
             cancel(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
+        } else if patient_id == "add_new" {
+            let message = q.regular_message().unwrap();
+            bot.edit_message_text(
+                message.chat.id,
+                message.id,
+                "Ok, tell me what's the new patient's name.",
+            )
+            .await?;
+            dialogue.update(State::ReceiveName).await?;
         } else {
             log::info!("You chose: {patient_id}");
 
@@ -106,10 +121,14 @@ pub async fn select_patient_callback_handler(
                         "No medications added yet for {}, add one with /addmedication.",
                         patient.name
                     ),
-                    _ => medicines
-                        .iter()
-                        .map(|m| m.print_in_list() + "\n")
-                        .collect::<String>(),
+                    _ => {
+                        let msg = medicines
+                            .iter()
+                            .map(|m| m.print_in_list() + "\n")
+                            .collect::<String>();
+
+                        format!("{}\nRegister a taken dosage by running /take.", msg)
+                    }
                 };
                 bot.edit_message_text(message.chat.id, message.id, msg)
                     .await?;

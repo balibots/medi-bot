@@ -74,6 +74,20 @@ pub async fn take_medicine_second_callback_handler(
                 bot.edit_message_text(message.chat.id, message.id, "Got it, thanks!")
                     .await?;
 
+                let medicines = Medication::get_all_by_patient_id(
+                    &medicine.patient_id,
+                    cfg.redis_connection.clone(),
+                );
+
+                bot.send_message(
+                    message.chat.id,
+                    medicines
+                        .iter()
+                        .map(|m| m.print_in_list() + "\n")
+                        .collect::<String>(),
+                )
+                .await?;
+
                 dialogue.exit().await?;
             }
         }

@@ -51,11 +51,7 @@ pub async fn receive_name_callback_handler(
                 "Ok, tell me what's the new patient's name.",
             )
             .await?;
-            bot.send_message(
-                q.regular_message().unwrap().chat.id,
-                "Ok, tell me what's the new patient's name.",
-            )
-            .await?;
+
             dialogue.update(State::ReceiveName).await?;
         } else {
             log::info!("You chose: {patient_id}");
@@ -99,7 +95,10 @@ pub async fn receive_name(
 
             bot.send_message(
                 msg.chat.id,
-                "Great. Now what's the name of the medicine {} is going to be taking?",
+                format!(
+                    "Great. Now what's the name of the medicine {} is going to be taking?",
+                    patient.name
+                ),
             )
             .await?;
 
