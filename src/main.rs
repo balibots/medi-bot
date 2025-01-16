@@ -8,15 +8,22 @@ use commands::{list_my_patients, select_patient_callback_handler};
 use dotenv::dotenv;
 use medibot::{Command, State};
 use redis::Connection;
-use std::sync::{Arc, Mutex};
+use std::{
+    env,
+    sync::{Arc, Mutex},
+};
 use teloxide::{
     dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
     prelude::*,
+    update_listeners::webhooks,
 };
+
+use url::Url;
 
 mod add_medication;
 mod add_patient;
 mod commands;
+mod err_handling;
 mod frequency;
 mod medication;
 mod patient;
@@ -38,7 +45,9 @@ async fn main() {
 
     let bot = Bot::from_env();
 
-    let client = redis::Client::open("redis://127.0.0.1/").expect("Could not connect to Redis");
+    let client = redis::Client::open(env::var("REDIS_URL").expect("REDIS_URL missing"))
+        .expect("Could not connect to Redis");
+
     let redis_connection = client
         .get_connection()
         .expect("Could not get a Redis connection");
@@ -47,12 +56,46 @@ async fn main() {
         redis_connection: Arc::new(Mutex::new(redis_connection)),
     };
 
-    Dispatcher::builder(bot, schema())
+    let mut dispatch_builder = Dispatcher::builder(bot.clone(), schema())
         .dependencies(dptree::deps![parameters, InMemStorage::<State>::new()])
         .enable_ctrlc_handler()
-        .build()
-        .dispatch()
-        .await;
+        .build();
+
+    let webhook_url = env::var("WEBHOOK_URL");
+
+    match webhook_url {
+        Ok(host) if host.len() > 0 => {
+            // using webhooks
+            let port: u16 = env::var("PORT")
+                .expect("PORT env variable is not set")
+                .parse()
+                .expect("PORT env variable value is not an integer");
+
+            log::info!("Using WebHooks, host: {}, port: {}", host, port);
+
+            let addr = ([0, 0, 0, 0], port).into();
+
+            // Heroku host example: "heroku-ping-pong-bot.herokuapp.com"
+            let url = Url::parse(&host)
+                .expect("HOST env var Url malformed")
+                .join("/webhookBot")
+                .expect("Invalid WEBHOOK_URL");
+
+            let listener = webhooks::axum(bot.clone(), webhooks::Options::new(addr, url))
+                .await
+                .expect("Couldn't setup webhook");
+
+            dispatch_builder
+                .dispatch_with_listener(listener, err_handling::MyErrorHandler::new())
+                .await;
+        }
+        _ => {
+            log::info!("Using long polling");
+
+            // long polling
+            dispatch_builder.dispatch().await;
+        }
+    }
 }
 
 fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
