@@ -84,7 +84,7 @@ pub async fn receive_telegram_user_name(
             let patient = Patient::get_by_id(&patient_id, con.clone())
                 .expect("Error getting patient for sharing");
 
-            Patient::share(&patient, text, con.clone());
+            Patient::share(&patient, text, con.clone())?;
 
             bot.send_message(msg.chat.id, "Patient shared.").await?;
 
