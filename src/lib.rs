@@ -25,6 +25,10 @@ pub enum State {
         patient_id: String,
     },
     SelectPatient,
+    StartSharePatient,
+    ReceiveTelegramUserForSharePatient {
+        patient_id: String,
+    },
 }
 
 #[derive(BotCommands, Clone)]
@@ -48,7 +52,8 @@ pub enum Command {
     Patients,
     #[command(description = "add a new patient")]
     AddPatient,
-
-    #[command(description = "gets all the created meds.")]
+    #[command(description = "shares a patient with another telegram user.")]
+    SharePatient,
+    #[command(description = "gets all the patients and meds you have access to.")]
     GetAll,
 }

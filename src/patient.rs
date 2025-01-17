@@ -67,6 +67,21 @@ impl Patient {
             .collect::<Vec<Patient>>())
     }
 
+    pub fn share(
+        &self,
+        telegram_user_id: &str,
+        con: Arc<Mutex<Connection>>,
+    ) -> Result<(), RedisError> {
+        con.lock()
+            .unwrap()
+            .sadd::<String, String, ()>(
+                format!("medi:user_patient:{}", telegram_user_id.to_string()),
+                self.id.to_string(),
+            )
+            .expect("Error adding new patient to user set array");
+        Ok(())
+    }
+
     pub fn generate_patient_keyboard(
         con: Arc<Mutex<Connection>>,
         user_id: String,
