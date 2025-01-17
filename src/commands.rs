@@ -53,14 +53,20 @@ pub async fn get_all(
         .collect();
 
     // TODO: show patient and then medicine under them
-    bot.send_message(
-        msg.chat.id,
-        all_records
-            .iter()
-            .map(|m| m.print_in_list() + "\n")
-            .collect::<String>(),
-    )
-    .await?;
+    let outgoing_msg = all_records
+        .iter()
+        .map(|m| m.print_in_list() + "\n")
+        .collect::<String>();
+
+    if outgoing_msg.len() == 0 {
+        bot.send_message(
+            msg.chat.id,
+            "No medications added yet - try /addmedication to start.",
+        )
+        .await?;
+    } else {
+        bot.send_message(msg.chat.id, outgoing_msg).await?;
+    }
 
     Ok(())
 }
