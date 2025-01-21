@@ -1,12 +1,9 @@
-use std::error::Error;
-
 use crate::{
     medication::Medication, patient::Patient, Command, ConfigParameters, HandlerResult, MyDialogue,
 };
-use medibot::State;
 use teloxide::{
     prelude::*,
-    types::{InlineKeyboardMarkup, Message, ParseMode},
+    types::{Message, ParseMode},
     utils::command::BotCommands,
     Bot,
 };
@@ -36,7 +33,14 @@ pub async fn cancel(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResu
     Ok(())
 }
 
-pub async fn get_all(
+pub async fn cancel_with_edit(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+    bot.edit_message_text(msg.chat.id, msg.id, "Cancelling the current operation.")
+        .await?;
+    dialogue.exit().await?;
+    Ok(())
+}
+
+pub async fn get_all_command(
     cfg: ConfigParameters,
     bot: Bot,
     _: MyDialogue,
@@ -66,82 +70,6 @@ pub async fn get_all(
         .await?;
     } else {
         bot.send_message(msg.chat.id, outgoing_msg).await?;
-    }
-
-    Ok(())
-}
-
-pub async fn list_my_patients(
-    cfg: ConfigParameters,
-    bot: Bot,
-    dialogue: MyDialogue,
-    msg: Message,
-) -> HandlerResult {
-    let con = cfg.redis_connection;
-
-    let keyboard = Patient::generate_patient_keyboard(con.clone(), msg.chat.id.to_string(), true);
-
-    bot.send_message(
-        msg.chat.id,
-        "Here are the patients you have access to\\. Select one to see all meds for that patient\\.",
-    )
-    .reply_markup(InlineKeyboardMarkup::new(keyboard))
-    .parse_mode(ParseMode::MarkdownV2)
-    .await?;
-
-    dialogue.update(State::SelectPatient).await?;
-    Ok(())
-}
-
-pub async fn select_patient_callback_handler(
-    cfg: ConfigParameters,
-    bot: Bot,
-    dialogue: MyDialogue,
-    q: CallbackQuery,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
-    if let Some(ref patient_id) = q.data {
-        if patient_id == "cancel" {
-            cancel(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
-        } else if patient_id == "add_new" {
-            let message = q.regular_message().unwrap();
-            bot.edit_message_text(
-                message.chat.id,
-                message.id,
-                "Ok, tell me what's the new patient's name.",
-            )
-            .await?;
-            dialogue.update(State::ReceiveName).await?;
-        } else {
-            log::info!("You chose: {patient_id}");
-
-            bot.answer_callback_query(&q.id).await?;
-
-            if let Some(message) = q.regular_message() {
-                let patient = Patient::get_by_id(patient_id, cfg.redis_connection.clone()).unwrap();
-
-                let medicines =
-                    Medication::get_all_by_patient_id(patient_id, cfg.redis_connection.clone());
-
-                let msg = match medicines.len() {
-                    0 => format!(
-                        "No medications added yet for {}, add one with /addmedication.",
-                        patient.name
-                    ),
-                    _ => {
-                        let msg = medicines
-                            .iter()
-                            .map(|m| m.print_in_list() + "\n")
-                            .collect::<String>();
-
-                        format!("{}\nRegister a taken dosage by running /take.", msg)
-                    }
-                };
-                bot.edit_message_text(message.chat.id, message.id, msg)
-                    .await?;
-
-                dialogue.exit().await?;
-            }
-        }
     }
 
     Ok(())

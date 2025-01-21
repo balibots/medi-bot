@@ -2,7 +2,7 @@ use std::error::Error;
 
 use medibot::State;
 
-use crate::commands::cancel;
+use crate::commands::cancel_with_edit;
 use crate::medication::Medication;
 use crate::{patient::Patient, ConfigParameters, HandlerResult, MyDialogue};
 
@@ -18,17 +18,30 @@ pub async fn take_medicine_callback_handler(
     dialogue: MyDialogue,
     q: CallbackQuery,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    if let Some(ref patient) = q.data {
-        if patient == "cancel" {
-            cancel(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
+    if let Some(ref patient_id) = q.data {
+        if patient_id == "cancel" {
+            cancel_with_edit(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
         } else {
-            log::info!("You chose: {patient}");
+            log::info!("You chose: {patient_id}");
+            let con = cfg.redis_connection;
+            let message = q.regular_message().unwrap();
 
             bot.answer_callback_query(&q.id).await?;
 
-            if let Some(message) = q.regular_message() {
-                let new_keyb =
-                    Medication::generate_medication_keyboard(patient, cfg.redis_connection);
+            let medication = Medication::get_all_by_patient_id(patient_id, con.clone());
+            let patient = Patient::get_by_id(patient_id, con.clone()).unwrap();
+
+            if medication.len() == 0 {
+                bot.edit_message_text(
+                    message.chat.id,
+                    message.id,
+                    format!("Sorry you haven't added any medication plans for {} yet, try /addmedication.", patient.name)
+                )
+                .await?;
+
+                dialogue.exit().await?;
+            } else {
+                let new_keyb = Medication::generate_medication_keyboard(patient_id, con.clone());
 
                 bot.edit_message_text(
                     message.chat.id,
@@ -41,7 +54,7 @@ pub async fn take_medicine_callback_handler(
 
                 dialogue
                     .update(State::TakeMedicineFinal {
-                        patient_id: patient.into(),
+                        patient_id: patient_id.into(),
                     })
                     .await?;
             }
@@ -59,7 +72,7 @@ pub async fn take_medicine_second_callback_handler(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     if let Some(ref medicine_id) = q.data {
         if medicine_id == "cancel" {
-            cancel(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
+            cancel_with_edit(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
         } else {
             log::info!("You chose: {medicine_id}");
 
@@ -96,7 +109,7 @@ pub async fn take_medicine_second_callback_handler(
     Ok(())
 }
 
-pub async fn take_medicine(
+pub async fn take_medicine_command(
     cfg: ConfigParameters,
     bot: Bot,
     dialogue: MyDialogue,

@@ -29,6 +29,9 @@ pub enum State {
     ReceiveTelegramUserForSharePatient {
         patient_id: String,
     },
+    PatientOps {
+        patient_id: String,
+    },
 }
 
 #[derive(BotCommands, Clone)]
@@ -42,18 +45,14 @@ pub enum Command {
     Start,
     #[command(description = "display this text.")]
     Help,
+    #[command(description = "manage my patients")]
+    Patients,
     #[command(description = "add a new medication plan.")]
     AddMedication,
-    #[command(description = "cancel the current operation.")]
-    Cancel,
     #[command(description = "register a medicine being taken")]
     Take,
-    #[command(description = "list my patients")]
-    Patients,
-    #[command(description = "add a new patient")]
-    AddPatient,
-    #[command(description = "shares a patient with another telegram user.")]
-    SharePatient,
+    #[command(description = "cancel the current operation.")]
+    Cancel,
     #[command(description = "gets all the patients and meds you have access to.")]
     GetAll,
 }

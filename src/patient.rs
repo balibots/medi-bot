@@ -10,6 +10,7 @@ pub struct Patient {
     pub id: String,
     pub name: String,
     creator_user_id: String,
+    shared_with: Vec<String>,
 }
 
 impl Patient {
@@ -18,11 +19,12 @@ impl Patient {
             id: uuid::Uuid::new_v4().to_string(),
             name,
             creator_user_id: user_id,
+            shared_with: vec![],
         }
     }
 
     pub fn save(&self, connection: Arc<Mutex<Connection>>) -> Result<(), RedisError> {
-        println!("saving patient {:?}", self);
+        log::info!("saving patient {:?}", self);
 
         let mut con = connection.lock().unwrap();
 
@@ -44,7 +46,26 @@ impl Patient {
         Ok(())
     }
 
+    pub fn delete(&self, connection: Arc<Mutex<Connection>>) -> Result<(), RedisError> {
+        log::info!("deleting patient {:?}", self);
+        let mut con = connection.lock().unwrap();
+
+        con.del::<String, ()>(format!("medi:patient:{}", self.id))
+            .expect("Error deleting patient on del");
+
+        for user_id in self.shared_with.iter() {
+            con.srem::<String, String, ()>(
+                format!("medi:user_patient:{}", user_id.to_string()),
+                self.id.to_string(),
+            )
+            .expect("Error removing patient from user set array");
+        }
+
+        Ok(())
+    }
+
     pub fn get_by_id(patient_id: &str, con: Arc<Mutex<Connection>>) -> Result<Self, RedisError> {
+        log::info!("{}", patient_id);
         con.lock()
             .unwrap()
             .get::<String, Patient>(format!("medi:patient:{}", patient_id))
@@ -68,7 +89,7 @@ impl Patient {
     }
 
     pub fn share(
-        &self,
+        &mut self,
         telegram_user_id: &str,
         con: Arc<Mutex<Connection>>,
     ) -> Result<(), RedisError> {
@@ -79,6 +100,9 @@ impl Patient {
                 self.id.to_string(),
             )
             .expect("Error adding new patient to user set array");
+
+        self.shared_with.push(telegram_user_id.to_string());
+
         Ok(())
     }
 
@@ -90,6 +114,8 @@ impl Patient {
         let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
 
         let patients = Patient::get_my_patients(&user_id, con).unwrap();
+
+        log::info!("{:?}", patients);
 
         for versions in patients.chunks(3) {
             let row = versions

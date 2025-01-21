@@ -1,4 +1,4 @@
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{Date, DateTime, Duration, DurationRound, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use teloxide::types::InlineKeyboardButton;
@@ -59,11 +59,6 @@ impl Medication {
             }
         };
 
-        /* TODO: when should we do this ??? do we have a command for the first dose?
-        con.zadd(
-            "medi:trigger".to_string(), self.id, next_timestamp)
-            */
-
         con.sadd::<String, String, ()>(
             format!("medi:patient_meds:{}", self.patient_id.to_string()),
             self.id.to_string(),
@@ -94,17 +89,40 @@ impl Medication {
         }
     }
 
+    fn print_can_take_next(&self) -> String {
+        if self.can_take() {
+            "Right now".to_string()
+        } else {
+            let lt = DateTime::from_timestamp(self.last_taken.unwrap(), 0).unwrap()
+                + TimeDelta::hours(self.frequency.get_hours().into());
+            let now = Utc::now();
+            let dif = lt - now;
+            if dif.num_hours() > 0 {
+                format!(
+                    "in {} hours and {} minutes",
+                    dif.num_hours().to_string(),
+                    (dif.checked_sub(&TimeDelta::hours(dif.num_hours())))
+                        .unwrap()
+                        .num_minutes()
+                )
+            } else {
+                format!("in {} minutes", dif.num_minutes().to_string())
+            }
+        }
+    }
+
     pub fn print_in_list(&self) -> String {
         let can_take = if self.can_take() { "✅" } else { "🙅" };
 
         format!(
-            "{} {}: {} ({}) - {}. Last taken: {}.",
+            "{} {}: {} ({}) - {}. Last taken: {}. Can take next: {}.",
             can_take,
             self.patient_name.clone().unwrap_or("???".to_string()),
             self.medicine,
             self.dosage,
             self.frequency, // TODO implement display
             self.print_last_taken(),
+            self.print_can_take_next()
         )
     }
 

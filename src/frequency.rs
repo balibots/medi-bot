@@ -87,7 +87,7 @@ impl Frequency {
 
 impl Display for Frequency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "every {} hours ", self.hours)
+        write!(f, "every {} hours", self.hours)
     }
 }
 

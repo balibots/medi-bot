@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::commands::cancel;
+use crate::commands::cancel_with_edit;
 use crate::frequency::Frequency;
 use crate::medication::Medication;
 use crate::patient::Patient;
@@ -42,7 +42,7 @@ pub async fn receive_name_callback_handler(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     if let Some(ref patient_id) = q.data {
         if patient_id == "cancel" {
-            cancel(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
+            cancel_with_edit(bot, dialogue, q.regular_message().unwrap().to_owned()).await?;
         } else if patient_id == "add_new" {
             let message = q.regular_message().unwrap();
             bot.edit_message_text(

@@ -1,11 +1,9 @@
 use crate::{
-    commands::{cancel, get_all, help, start},
+    commands::{cancel, get_all_command, help, start},
     flows::add_medication::*,
-    flows::add_patient::*,
-    flows::share_patient::*,
+    flows::patients::*,
     take_medicine::*,
 };
-use commands::{list_my_patients, select_patient_callback_handler};
 use dotenv::dotenv;
 use medibot::{Command, State};
 use redis::Connection;
@@ -107,11 +105,9 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
                 .branch(case![Command::Help].endpoint(help))
                 .branch(case![Command::Start].endpoint(start))
                 .branch(case![Command::AddMedication].endpoint(start_add_medication))
-                .branch(case![Command::GetAll].endpoint(get_all))
-                .branch(case![Command::Take].endpoint(take_medicine))
-                .branch(case![Command::Patients].endpoint(list_my_patients))
-                .branch(case![Command::AddPatient].endpoint(start_add_patient))
-                .branch(case![Command::SharePatient].endpoint(start_share_patient)),
+                .branch(case![Command::GetAll].endpoint(get_all_command))
+                .branch(case![Command::Take].endpoint(take_medicine_command))
+                .branch(case![Command::Patients].endpoint(patients_command)),
         )
         .branch(case![Command::Cancel].endpoint(cancel));
 
@@ -134,7 +130,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
             }]
             .endpoint(receive_frequency),
         )
-        .branch(dptree::case![State::ReceivePatientName].endpoint(receive_patient_name))
+        .branch(dptree::case![State::ReceivePatientName].endpoint(receive_new_patient_name))
         .branch(
             dptree::case![State::ReceiveTelegramUserForSharePatient { patient_id }]
                 .endpoint(receive_telegram_user_name),
@@ -150,8 +146,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
         )
         .branch(dptree::case![State::SelectPatient].endpoint(select_patient_callback_handler))
         .branch(
-            dptree::case![State::StartSharePatient]
-                .endpoint(take_patient_for_sharing_callback_handler),
+            dptree::case![State::PatientOps { patient_id }].endpoint(patient_ops_callback_handler),
         );
 
     dialogue::enter::<Update, InMemStorage<State>, State, _>()
