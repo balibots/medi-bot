@@ -5,6 +5,7 @@ use crate::{
     take_medicine::*,
 };
 use dotenv::dotenv;
+use dptree::filter;
 use medibot::{Command, State};
 use redis::Connection;
 use std::{
@@ -99,17 +100,17 @@ async fn main() {
 fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>> {
     use dptree::case;
 
-    let command_handler = teloxide::filter_command::<Command, _>()
-        .branch(
-            case![State::Start]
-                .branch(case![Command::Help].endpoint(help))
-                .branch(case![Command::Start].endpoint(start))
-                .branch(case![Command::AddMedication].endpoint(start_add_medication))
-                .branch(case![Command::GetAll].endpoint(get_all_command))
-                .branch(case![Command::Take].endpoint(take_medicine_command))
-                .branch(case![Command::Patients].endpoint(patients_command)),
-        )
-        .branch(case![Command::Cancel].endpoint(cancel));
+    let command_handler = teloxide::filter_command::<Command, _>().branch(
+        case![State::Start]
+            .filter(|update: Update| update.chat().unwrap().is_private())
+            .branch(case![Command::Help].endpoint(help))
+            .branch(case![Command::Start].endpoint(start))
+            .branch(case![Command::AddMedication].endpoint(start_add_medication))
+            .branch(case![Command::GetAll].endpoint(get_all_command))
+            .branch(case![Command::Take].endpoint(take_medicine_command))
+            .branch(case![Command::Patients].endpoint(patients_command))
+            .branch(case![Command::Cancel].endpoint(cancel)),
+    );
 
     let message_handler = Update::filter_message()
         .branch(command_handler)
@@ -135,6 +136,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
             dptree::case![State::ReceiveTelegramUserForSharePatient { patient_id }]
                 .endpoint(receive_telegram_user_name),
         )
+        .branch(filter(|update: Update| update.chat().unwrap().is_group()).endpoint(group_handler))
         .branch(dptree::endpoint(default_handler));
 
     let callback_handler = Update::filter_callback_query()
@@ -152,6 +154,15 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
     dialogue::enter::<Update, InMemStorage<State>, State, _>()
         .branch(callback_handler)
         .branch(message_handler)
+}
+
+async fn group_handler(bot: Bot, _dialogue: MyDialogue, msg: Message) -> HandlerResult {
+    bot.send_message(
+        msg.chat.id,
+        "Sorry I can only reply to private messages, come and have a chat! :)",
+    )
+    .await?;
+    Ok(())
 }
 
 async fn default_handler(bot: Bot, _dialogue: MyDialogue, msg: Message) -> HandlerResult {
