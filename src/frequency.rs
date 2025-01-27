@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Frequency {
     hours: i64,
     start_time: Option<i64>,
@@ -23,7 +23,8 @@ impl Frequency {
     // every 6 hours
     // 4 times a day
     pub fn parse(frequency: &str) -> Option<Self> {
-        let mut split = frequency.split(" ");
+        let lower = frequency.to_lowercase();
+        let mut split = lower.split(" ");
         match split.next() {
             Some(token) if token == "every" => {
                 let first_token = split.next();

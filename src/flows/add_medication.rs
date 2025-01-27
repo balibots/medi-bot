@@ -182,7 +182,7 @@ pub async fn receive_frequency(
                     patient_id,
                     medicine,
                     dosage,
-                    frequency,
+                    frequency.clone(),
                     dialogue.chat_id().to_string(),
                 );
 
@@ -197,7 +197,7 @@ When giving the first dose, run /take\\.
                     medication.medicine,
                     medication.patient_name.clone().unwrap(),
                     medication.dosage,
-                    frequency_str,
+                    frequency.to_string(),
                 );
 
                 bot.send_message(msg.chat.id, report)

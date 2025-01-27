@@ -38,6 +38,8 @@ pub async fn select_patient_callback_handler(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     let message = q.regular_message().unwrap();
     if let Some(ref patient_id) = q.data {
+        bot.answer_callback_query(&q.id).await?;
+
         if patient_id == "cancel" {
             cancel_with_edit(bot, dialogue, message.to_owned()).await?;
         } else if patient_id == "add_new" {
@@ -49,8 +51,6 @@ pub async fn select_patient_callback_handler(
             .await?;
             dialogue.update(State::ReceivePatientName).await?;
         } else {
-            bot.answer_callback_query(&q.id).await?;
-
             let patient = Patient::get_by_id(patient_id, cfg.redis_connection.clone()).unwrap();
             let keyboard: Vec<Vec<InlineKeyboardButton>> = vec![
                 vec![InlineKeyboardButton::callback(
@@ -103,6 +103,8 @@ pub async fn patient_ops_callback_handler(
     let message = q.regular_message().unwrap();
 
     if let Some(ref op) = q.data {
+        bot.answer_callback_query(&q.id).await?;
+
         if op == "cancel" {
             cancel_with_edit(bot, dialogue, message.to_owned()).await?;
         } else if op == "share_patient" {
@@ -198,7 +200,7 @@ pub async fn receive_new_patient_name(
             bot.send_message(
                 msg.chat.id,
                 format!(
-                    "Patient {} created. You might want to /addmedication next.",
+                    "Added patient {}. You might want to /addmedication next.",
                     text
                 ),
             )
