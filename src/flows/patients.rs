@@ -1,6 +1,7 @@
 use crate::commands::cancel_with_edit;
 use crate::medication::Medication;
 use crate::{patient::Patient, ConfigParameters, HandlerResult, MyDialogue, State};
+use chrono::DateTime;
 use std::error::Error;
 use teloxide::prelude::*;
 use teloxide::types::CallbackQuery;
@@ -54,9 +55,19 @@ pub async fn select_patient_callback_handler(
             let patient = Patient::get_by_id(patient_id, cfg.redis_connection.clone()).unwrap();
             let keyboard: Vec<Vec<InlineKeyboardButton>> = vec![
                 vec![InlineKeyboardButton::callback(
-                    "List medications".to_string(),
-                    "list_medication".to_string(),
+                    "Register medicine intake ".to_string(),
+                    "take".to_string(),
                 )],
+                vec![
+                    InlineKeyboardButton::callback(
+                        "List all medications".to_string(),
+                        "list_medication".to_string(),
+                    ),
+                    InlineKeyboardButton::callback(
+                        "Medication log".to_string(),
+                        "medication_log".to_string(),
+                    ),
+                ],
                 vec![
                     InlineKeyboardButton::callback(
                         "Share".to_string(),
@@ -104,9 +115,27 @@ pub async fn patient_ops_callback_handler(
 
     if let Some(ref op) = q.data {
         bot.answer_callback_query(&q.id).await?;
+        let con = cfg.redis_connection;
 
         if op == "cancel" {
             cancel_with_edit(bot, dialogue, message.to_owned()).await?;
+        } else if op == "take" {
+            let new_keyb = Medication::generate_medication_keyboard(&patient_id, con.clone());
+
+            bot.edit_message_text(
+                message.chat.id,
+                message.id,
+                "Great, now the name of the medicine?",
+            )
+            .reply_markup(InlineKeyboardMarkup::new(new_keyb))
+            .parse_mode(ParseMode::MarkdownV2)
+            .await?;
+
+            dialogue
+                .update(State::TakeMedicineFinal {
+                    patient_id: patient_id.into(),
+                })
+                .await?;
         } else if op == "share_patient" {
             bot.edit_message_text(
                 message.chat.id,
@@ -120,14 +149,12 @@ pub async fn patient_ops_callback_handler(
                 })
                 .await?;
         } else if op == "delete_patient" {
-            let con = cfg.redis_connection;
             let patient = Patient::get_by_id(&patient_id, con.clone()).expect("Patient not found");
             patient.delete(con.clone())?;
             bot.edit_message_text(message.chat.id, message.id, "Patient deleted.")
                 .await?;
             dialogue.exit().await?;
         } else if op == "list_medication" {
-            let con = cfg.redis_connection;
             let patient = Patient::get_by_id(&patient_id, con.clone()).expect("Patient not found");
             let medicines = Medication::get_all_by_patient_id(&patient_id, con.clone());
 
@@ -149,6 +176,26 @@ pub async fn patient_ops_callback_handler(
                 .await?;
 
             dialogue.exit().await?;
+        } else if op == "medication_log" {
+            let new_keyb = Medication::generate_medication_keyboard(&patient_id, con.clone());
+
+            bot.edit_message_text(
+                message.chat.id,
+                message.id,
+                "Great, getting the log for which medicine?",
+            )
+            .reply_markup(InlineKeyboardMarkup::new(new_keyb))
+            .parse_mode(ParseMode::MarkdownV2)
+            .await?;
+
+            dialogue
+                .update(State::MedicineLog {
+                    patient_id: patient_id.into(),
+                })
+                .await?;
+        } else {
+            bot.edit_message_text(message.chat.id, message.id, "Didn't quite get that, sorry.")
+                .await?;
         }
     }
     Ok(())
@@ -211,6 +258,64 @@ pub async fn receive_new_patient_name(
         None => {
             bot.send_message(msg.chat.id, "Didn't get that, please try again or /cancel.")
                 .await?;
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn medicine_log_callback_handler(
+    cfg: ConfigParameters,
+    bot: Bot,
+    dialogue: MyDialogue,
+    patient_id: String,
+    q: CallbackQuery,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let message = q.regular_message().unwrap();
+    bot.answer_callback_query(&q.id).await?;
+
+    if let Some(ref medication_id) = q.data {
+        if medication_id == "cancel" {
+            cancel_with_edit(bot, dialogue, message.to_owned()).await?;
+        } else {
+            let con = cfg.redis_connection;
+            let patient = Patient::get_by_id(&patient_id, con.clone()).unwrap();
+            let medication = Medication::get_by_id(medication_id, con.clone()).unwrap();
+            let log = medication.get_medication_log(con.clone()).unwrap();
+
+            let header = format!(
+                "Log for {} administration of {}:\n",
+                patient.name, medication.medicine
+            );
+
+            if log.len() == 0 {
+                bot.edit_message_text(
+                    message.chat.id,
+                    message.id,
+                    format!(
+                        "{}\n{}",
+                        header, " - Patient hasn't taken this medicine yet."
+                    ),
+                )
+                .await?;
+            } else {
+                bot.edit_message_text(
+                    message.chat.id,
+                    message.id,
+                    format!(
+                        "{}\n{}",
+                        header,
+                        log.into_iter()
+                            .map(|ts| format!(
+                                " - {}\n",
+                                DateTime::from_timestamp(ts, 0).unwrap().to_string()
+                            ))
+                            .collect::<String>()
+                    ),
+                )
+                .await?;
+            }
+            dialogue.exit().await?;
         }
     }
 

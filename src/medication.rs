@@ -1,4 +1,4 @@
-use chrono::{Date, DateTime, Duration, DurationRound, TimeDelta, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use teloxide::types::InlineKeyboardButton;
@@ -68,8 +68,30 @@ impl Medication {
         Ok(())
     }
 
-    pub fn set_taken_now(&mut self) {
+    pub fn set_taken_now(&mut self, connection: Arc<Mutex<Connection>>) -> Result<(), RedisError> {
         self.last_taken = Some(Utc::now().timestamp());
+
+        connection
+            .clone()
+            .lock()
+            .unwrap()
+            .lpush::<String, i64, ()>(
+                format!("medi:{}:taken", self.id),
+                self.last_taken.unwrap(),
+            )?;
+
+        self.save(connection)
+    }
+
+    pub fn get_medication_log(
+        &self,
+        connection: Arc<Mutex<Connection>>,
+    ) -> Result<Vec<i64>, RedisError> {
+        connection
+            .clone()
+            .lock()
+            .unwrap()
+            .lrange::<String, Vec<i64>>(format!("medi:{}:taken", self.id), 0, 10)
     }
 
     pub fn can_take(&self) -> bool {

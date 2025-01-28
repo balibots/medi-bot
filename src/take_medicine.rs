@@ -5,6 +5,7 @@ use medibot::State;
 use crate::commands::cancel_with_edit;
 use crate::medication::Medication;
 use crate::{patient::Patient, ConfigParameters, HandlerResult, MyDialogue};
+use redis::Commands;
 
 use teloxide::{
     prelude::*,
@@ -79,18 +80,20 @@ pub async fn take_medicine_second_callback_handler(
             bot.answer_callback_query(&q.id).await?;
 
             if let Some(message) = q.regular_message() {
-                let mut medicine =
-                    Medication::get_by_id(medicine_id, cfg.redis_connection.clone()).unwrap();
-                medicine.set_taken_now();
-                medicine.save(cfg.redis_connection.clone()).unwrap();
+                let con = cfg.redis_connection;
+                let mut medicine = Medication::get_by_id(medicine_id, con.clone()).unwrap();
+                medicine.set_taken_now(con.clone())?;
+
+                /* TODO: when should we do this ??? do we have a command for the first dose?
+                con.zadd(
+                    "medi:trigger".to_string(), self.id, next_timestamp)
+                    */
 
                 bot.edit_message_text(message.chat.id, message.id, "Got it, thanks!")
                     .await?;
 
-                let medicines = Medication::get_all_by_patient_id(
-                    &medicine.patient_id,
-                    cfg.redis_connection.clone(),
-                );
+                let medicines =
+                    Medication::get_all_by_patient_id(&medicine.patient_id, con.clone());
 
                 bot.send_message(
                     message.chat.id,

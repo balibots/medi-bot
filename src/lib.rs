@@ -32,6 +32,9 @@ pub enum State {
     PatientOps {
         patient_id: String,
     },
+    MedicineLog {
+        patient_id: String,
+    },
 }
 
 #[derive(BotCommands, Clone)]

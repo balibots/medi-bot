@@ -149,6 +149,10 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
         .branch(dptree::case![State::SelectPatient].endpoint(select_patient_callback_handler))
         .branch(
             dptree::case![State::PatientOps { patient_id }].endpoint(patient_ops_callback_handler),
+        )
+        .branch(
+            dptree::case![State::MedicineLog { patient_id }]
+                .endpoint(medicine_log_callback_handler),
         );
 
     dialogue::enter::<Update, InMemStorage<State>, State, _>()
