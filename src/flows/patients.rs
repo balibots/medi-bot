@@ -64,7 +64,7 @@ pub async fn select_patient_callback_handler(
                         "list_medication".to_string(),
                     ),
                     InlineKeyboardButton::callback(
-                        "Medication log".to_string(),
+                        "Intake log".to_string(),
                         "medication_log".to_string(),
                     ),
                 ],
