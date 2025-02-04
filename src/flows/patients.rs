@@ -284,8 +284,8 @@ pub async fn medicine_log_callback_handler(
             let log = medication.get_medication_log(con.clone()).unwrap();
 
             let header = format!(
-                "Log for {} administration of {}:\n",
-                patient.name, medication.medicine
+                "Log for {} administration of {} ({}):\n",
+                patient.name, medication.medicine, medication.dosage
             );
 
             if log.len() == 0 {

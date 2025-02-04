@@ -51,15 +51,21 @@ pub async fn get_all_command(
     let all_patients: Vec<Patient> =
         Patient::get_my_patients(&msg.chat.id.to_string(), con.clone()).unwrap();
 
-    let all_records: Vec<Medication> = all_patients
-        .into_iter()
-        .flat_map(|patient| Medication::get_all_by_patient_id(&patient.id, con.clone()))
-        .collect();
-
-    // TODO: show patient and then medicine under them
-    let outgoing_msg = all_records
+    let outgoing_msg = all_patients
         .iter()
-        .map(|m| m.print_in_list() + "\n")
+        .map(|p| {
+            let meds = Medication::get_all_by_patient_id(&p.id, con.clone());
+
+            let listprint = match meds.len() {
+                0 => " - No medications taken yet.\n".to_string(),
+                _ => meds
+                    .iter()
+                    .map(|m| m.print_in_list() + "\n")
+                    .collect::<String>(),
+            };
+
+            format!("*{}*\n{}\n", p.name, listprint)
+        })
         .collect::<String>();
 
     if outgoing_msg.len() == 0 {

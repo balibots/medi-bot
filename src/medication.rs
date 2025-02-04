@@ -137,14 +137,13 @@ impl Medication {
         let can_take = if self.can_take() { "✅" } else { "🙅" };
 
         format!(
-            "{} {}: {} ({}) - {}. Last taken: {}. Can take next: {}.",
-            can_take,
-            self.patient_name.clone().unwrap_or("???".to_string()),
+            "{} ({}) - {}. Last taken: {}. Can take next: {} {}.",
             self.medicine,
             self.dosage,
             self.frequency, // TODO implement display
             self.print_last_taken(),
-            self.print_can_take_next()
+            self.print_can_take_next(),
+            can_take
         )
     }
 
