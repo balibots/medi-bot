@@ -5,7 +5,6 @@ use medibot::State;
 use crate::commands::cancel_with_edit;
 use crate::medication::Medication;
 use crate::{patient::Patient, ConfigParameters, HandlerResult, MyDialogue};
-use redis::Commands;
 
 use teloxide::{
     prelude::*,

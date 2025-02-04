@@ -13,9 +13,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 use teloxide::{
-    dispatching::{dialogue, dialogue::InMemStorage, UpdateHandler},
+    dispatching::{
+        dialogue::{self, InMemStorage},
+        UpdateHandler,
+    },
     prelude::*,
     update_listeners::webhooks,
+    utils::command::BotCommands,
 };
 
 use url::Url;
@@ -46,6 +50,16 @@ async fn main() {
 
     let client = redis::Client::open(env::var("REDIS_URL").expect("REDIS_URL missing"))
         .expect("Could not connect to Redis");
+
+    // not sure this is working:
+    bot.set_chat_menu_button()
+        .menu_button(teloxide::types::MenuButton::Commands)
+        .await
+        .expect("Error setting chat menu button");
+
+    bot.set_my_commands(Command::bot_commands())
+        .await
+        .expect("Error setting my commands");
 
     let redis_connection = client
         .get_connection()
