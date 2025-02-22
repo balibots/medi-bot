@@ -21,7 +21,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build the Docker image
-        run: docker buildx build . -t medibot:${{ github.sha }} --cache-to type=gha,mode=max --cache-from type=gha
+        run: docker buildx build . -t medibot --cache-to type=gha,mode=max --cache-from type=gha
 
       - uses: "google-github-actions/setup-gcloud@v2"
         with:
