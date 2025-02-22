@@ -9,13 +9,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Expose GitHub Runtime
+        uses: crazy-max/ghaction-github-runtime@v3
+
       - name: Build the Docker image
-        run: docker build . --file Dockerfile --tag medibot:${{ github.sha }}
+        run: docker build . --file Dockerfile --tag medibot:${{ github.sha }} --cache-to type=gha,mode=max --cache-from type=gha
+
       - uses: "google-github-actions/setup-gcloud@v2"
         with:
           version: ">= 416.0.0"
-      - id: "auth"
-        name: "Authenticate to GCP"
+
+      - name: "Authenticate to GCP"
         uses: "google-github-actions/auth@v2"
         with:
           create_credentials_file: "true"
