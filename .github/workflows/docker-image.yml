@@ -14,13 +14,19 @@ jobs:
       - uses: "google-github-actions/setup-gcloud@v2"
         with:
           version: ">= 416.0.0"
-      - name: Configure Google Cloud CLI
-        run: |
-          echo $GCLOUD_SERVICE_KEY | base64 --decode > ${HOME}/gcloud-service-key.json
-          gcloud auth activate-service-account --key-file ${HOME}/gcloud-service-key.json --project=vernal-mantra-665
-          gcloud auth configure-docker --quiet
-        env:
-          GCLOUD_SERVICE_KEY: $GCLOUD_SERVICE_KEY
+      - id: "auth"
+        name: "Authenticate to GCP"
+        uses: "google-github-actions/auth@v2"
+        with:
+          create_credentials_file: "true"
+          project_id: "vernal-mantra-665"
+          workload_identity_provider: "projects/67604798339/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
+
+      - id: "gcloud"
+        name: "gcloud"
+        run: |-
+          gcloud auth login --brief --cred-file="${{ steps.auth.outputs.credentials_file_path }}"
+          gcloud services list
 
       - name: Tag and push image
         run: |
