@@ -1,0 +1,26 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag medibot:${{ github.sha }}
+    - uses: 'google-github-actions/setup-gcloud@v2'
+      with:
+        version: '>= 416.0.0'
+    - name: Configure Google Cloud CLI
+      run: |
+        echo $GCLOUD_SERVICE_KEY | base64 --decode > ${HOME}/gcloud-service-key.json
+        gcloud auth activate-service-account --key-file ${HOME}/gcloud-service-key.json --project=vernal-mantra-665
+        gcloud auth configure-docker --quiet
+    - name: Tag and push image
+      run: |
+        docker tag medibot gcr.io/vernal-mantra-665/medibot:${{ github.ref_name }}
+        docker tag medibot gcr.io/vernal-mantra-665/medibot:build-${{ github.sha }}
+        docker push gcr.io/vernal-mantra-665/medibot        
