@@ -32,4 +32,8 @@ jobs:
           workload_identity_provider: "projects/67604798339/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
 
       - name: Build and push the Docker image
-        run: docker buildx build -t gcr.io/vernal-mantra-665/medibot:${{ github.ref_name }} -t gcr.io/vernal-mantra-665/medibot:${{ github.sha }} --push --cache-to type=gha,mode=max --cache-from type=gha .
+        run: |
+          docker buildx build \
+            -t gcr.io/vernal-mantra-665/medibot:${{ github.ref_name }} \
+            -t gcr.io/vernal-mantra-665/medibot:${{ github.sha }} \
+            --push --cache-to type=gha,mode=max --cache-from type=gha .
