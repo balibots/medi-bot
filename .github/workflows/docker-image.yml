@@ -34,12 +34,6 @@ jobs:
           project_id: "vernal-mantra-665"
           workload_identity_provider: "projects/67604798339/locations/global/workloadIdentityPools/github-actions/providers/github-actions"
 
-      - id: "gcloud"
-        name: "gcloud"
-        run: |-
-          gcloud auth login --brief --cred-file="${{ steps.auth.outputs.credentials_file_path }}"
-          gcloud services list
-
       - name: Tag and push image
         run: |
           docker tag medibot gcr.io/vernal-mantra-665/medibot:${{ github.ref_name }}
