@@ -84,10 +84,17 @@ pub async fn select_patient_callback_handler(
                 )],
             ];
 
+            let sharing = patient.get_shared_with();
+            let shared_msg = if sharing.len() > 0 {
+                format!("Patient shared with accounts: {}.\n\n", sharing.join(", "))
+            } else {
+                "".to_string()
+            };
+
             bot.edit_message_text(
                 message.chat.id,
                 message.id,
-                format!("Select optzionne for {}:", patient.name),
+                format!("{}Select optzionne for {}:", shared_msg, patient.name),
             )
             .reply_markup(InlineKeyboardMarkup::new(keyboard))
             .parse_mode(ParseMode::MarkdownV2)
@@ -116,6 +123,7 @@ pub async fn patient_ops_callback_handler(
     if let Some(ref op) = q.data {
         bot.answer_callback_query(&q.id).await?;
         let con = cfg.redis_connection;
+        let patient = Patient::get_by_id(&patient_id, con.clone()).unwrap();
 
         if op == "cancel" {
             cancel_with_edit(bot, dialogue, message.to_owned()).await?;
@@ -140,7 +148,10 @@ pub async fn patient_ops_callback_handler(
             bot.edit_message_text(
                 message.chat.id,
                 message.id,
-                "Great. Now please enter the Telegram User ID you'll be sharing this patient with.",
+                format!(
+                    "Great. Now please enter the Telegram User ID you'll be sharing {} with or /cancel.",
+                    patient.name
+                ),
             )
             .await?;
             dialogue
@@ -209,6 +220,9 @@ pub async fn receive_telegram_user_name(
     msg: Message,
 ) -> HandlerResult {
     match msg.text() {
+        Some(text) if text == "/cancel" => {
+            cancel_with_edit(bot, dialogue, msg.to_owned()).await?;
+        }
         Some(text) => {
             let con = cfg.redis_connection;
 

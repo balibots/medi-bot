@@ -106,6 +106,10 @@ impl Patient {
         Ok(())
     }
 
+    pub fn get_shared_with(&self) -> &Vec<String> {
+        &self.shared_with
+    }
+
     pub fn generate_patient_keyboard(
         con: Arc<Mutex<Connection>>,
         user_id: String,
