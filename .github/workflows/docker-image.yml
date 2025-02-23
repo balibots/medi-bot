@@ -32,7 +32,7 @@ jobs:
       - name: Login to GAR
         uses: docker/login-action@v3
         with:
-          registry: us-docker.pkg.dev
+          registry: eu-docker.pkg.dev
           username: oauth2accesstoken
           password: "${{ steps.auth.outputs.auth_token }}"
 
@@ -42,6 +42,6 @@ jobs:
       - name: Build and push the Docker image
         run: |
           docker buildx build \
-            -t gcr.io/vernal-mantra-665/medibot:${{ github.ref_name }} \
-            -t gcr.io/vernal-mantra-665/medibot:${{ github.sha }} \
+            -t eu-docker.pkg.dev/vernal-mantra-665/medibot:${{ github.ref_name }} \
+            -t eu-docker.pkg.dev/vernal-mantra-665/medibot:${{ github.sha }} \
             --push --cache-to type=gha,mode=max --cache-from type=gha .
