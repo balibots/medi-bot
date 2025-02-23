@@ -22,6 +22,8 @@ RUN cargo build --release
 # our final base
 FROM debian:bullseye-slim
 
+RUN apt update && apt install -y openssl curl
+
 # copy the build artifact from the build stage
 COPY --from=build /medibot/target/release/medibot .
 
