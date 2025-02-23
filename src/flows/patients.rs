@@ -86,7 +86,10 @@ pub async fn select_patient_callback_handler(
 
             let sharing = patient.get_shared_with();
             let shared_msg = if sharing.len() > 0 {
-                format!("Patient shared with accounts: {}.\n\n", sharing.join(", "))
+                format!(
+                    "Patient shared with accounts: {}\\.\n\n",
+                    sharing.join(", ")
+                )
             } else {
                 "".to_string()
             };
