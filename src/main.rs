@@ -91,7 +91,7 @@ async fn main() {
             // Heroku host example: "heroku-ping-pong-bot.herokuapp.com"
             let url = Url::parse(&host)
                 .expect("HOST env var Url malformed")
-                .join("/webhookBot")
+                .join("/webhookBot") // TODO should this be token?
                 .expect("Invalid WEBHOOK_URL");
 
             let listener = webhooks::axum(bot.clone(), webhooks::Options::new(addr, url))
