@@ -109,8 +109,14 @@ impl Patient {
         Ok(())
     }
 
-    pub fn get_shared_with(&self) -> Vec<String> {
-        self.shared_with.clone().into_iter().collect()
+    pub fn get_shared_with(&self) -> &Vec<String> {
+        &self.shared_with
+    }
+
+    pub fn get_all_shared_users(&self) -> Vec<String> {
+        let mut tmp = self.shared_with.clone();
+        tmp.push(self.creator_user_id.clone());
+        tmp
     }
 
     pub fn generate_patient_keyboard(

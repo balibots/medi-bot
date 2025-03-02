@@ -100,7 +100,11 @@ pub async fn take_medicine_second_callback_handler(
                 .await?;
 
                 let patient = Patient::get_by_id(&patient_id, con.clone()).unwrap();
-                for telegram_user in patient.get_shared_with() {
+                for telegram_user in patient.get_all_shared_users() {
+                    if telegram_user == q.from.id.to_string() {
+                        continue;
+                    }
+
                     match bot
                         .send_message(
                             telegram_user.clone(),
