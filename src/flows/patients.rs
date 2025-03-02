@@ -1,12 +1,15 @@
-use crate::commands::cancel_with_edit;
+use crate::commands::{cancel, cancel_with_edit};
 use crate::medication::Medication;
 use crate::{patient::Patient, ConfigParameters, HandlerResult, MyDialogue, State};
 use chrono::DateTime;
 use std::error::Error;
+use teloxide::payloads::EditMessageTextSetters;
 use teloxide::prelude::*;
-use teloxide::types::CallbackQuery;
-use teloxide::types::Message;
+use teloxide::types::{
+    ButtonRequest, CallbackQuery, KeyboardButton, KeyboardButtonRequestUsers, KeyboardRemove,
+};
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup, ParseMode};
+use teloxide::types::{KeyboardMarkup, Message};
 use teloxide::Bot;
 
 pub async fn patients_command(
@@ -60,7 +63,7 @@ pub async fn select_patient_callback_handler(
                 )],
                 vec![
                     InlineKeyboardButton::callback(
-                        "List all medications".to_string(),
+                        "All medications".to_string(),
                         "list_medication".to_string(),
                     ),
                     InlineKeyboardButton::callback(
@@ -88,7 +91,9 @@ pub async fn select_patient_callback_handler(
             let shared_msg = if sharing.len() > 0 {
                 format!(
                     "Patient shared with accounts: {}\\.\n\n",
-                    sharing.join(", ")
+                    sharing
+                        .iter()
+                        .fold(String::new(), |acc, id| { acc + &id.to_string() })
                 )
             } else {
                 "".to_string()
@@ -148,14 +153,20 @@ pub async fn patient_ops_callback_handler(
                 })
                 .await?;
         } else if op == "share_patient" {
-            bot.edit_message_text(
+            let btn = KeyboardButton::new("Select user");
+            let btnrequest = btn.request(ButtonRequest::RequestUsers(
+                KeyboardButtonRequestUsers::new(teloxide::types::RequestId(1)),
+            ));
+            let keyb = KeyboardMarkup::new(vec![vec![btnrequest]]);
+
+            bot.send_message(
                 message.chat.id,
-                message.id,
                 format!(
-                    "Great. Now please enter the Telegram User ID you'll be sharing {} with or /cancel.",
+                    "Great. Now please select the Telegram user you'll be sharing {} with or /cancel.",
                     patient.name
                 ),
             )
+            .reply_markup(keyb.one_time_keyboard())
             .await?;
             dialogue
                 .update(State::ReceiveTelegramUserForSharePatient {
@@ -165,8 +176,12 @@ pub async fn patient_ops_callback_handler(
         } else if op == "delete_patient" {
             let patient = Patient::get_by_id(&patient_id, con.clone()).expect("Patient not found");
             patient.delete(con.clone())?;
-            bot.edit_message_text(message.chat.id, message.id, "Patient deleted.")
-                .await?;
+            bot.edit_message_text(
+                message.chat.id,
+                message.id,
+                format!("Patient {} deleted.", patient.name),
+            )
+            .await?;
             dialogue.exit().await?;
         } else if op == "list_medication" {
             let patient = Patient::get_by_id(&patient_id, con.clone()).expect("Patient not found");
@@ -222,30 +237,58 @@ pub async fn receive_telegram_user_name(
     patient_id: String,
     msg: Message,
 ) -> HandlerResult {
-    match msg.text() {
-        Some(text) if text == "/cancel" => {
-            cancel_with_edit(bot, dialogue, msg.to_owned()).await?;
-        }
-        Some(text) => {
+    match msg.shared_users() {
+        Some(users) => {
+            log::info!("shared users {:?}", users);
             let con = cfg.redis_connection;
 
             let mut patient = Patient::get_by_id(&patient_id, con.clone())
                 .expect("Error getting patient for sharing");
 
-            Patient::share(&mut patient, text, con.clone())?;
+            users.user_ids.iter().for_each(|id| {
+                Patient::share(&mut patient, id.0, con.clone()).unwrap();
+            });
 
             patient
                 .save(con.clone())
                 .expect("Error saving patient after sharing");
 
-            bot.send_message(msg.chat.id, "Patient shared.").await?;
+            bot.send_message(msg.chat.id, format!("Patient {} shared.", patient.name))
+                .await?;
 
             dialogue.exit().await?;
         }
-        None => {
-            bot.send_message(msg.chat.id, "Didn't get that, please try again or /cancel.")
-                .await?;
-        }
+        None => match msg.text() {
+            Some(text) if text == "/cancel" => {
+                bot.send_message(msg.chat.id, "Cancelling the current operation.")
+                    .reply_markup(KeyboardRemove::new())
+                    .await?;
+                dialogue.exit().await?;
+            }
+            Some(text) if text.parse::<u64>().is_ok() => {
+                let con = cfg.redis_connection;
+                let parsed_id = text.parse::<u64>().unwrap();
+
+                let mut patient = Patient::get_by_id(&patient_id, con.clone())
+                    .expect("Error getting patient for sharing");
+
+                Patient::share(&mut patient, parsed_id, con.clone())?;
+
+                patient
+                    .save(con.clone())
+                    .expect("Error saving patient after sharing");
+
+                bot.send_message(msg.chat.id, "Patient shared.")
+                    .reply_markup(KeyboardRemove::new())
+                    .await?;
+
+                dialogue.exit().await?;
+            }
+            _ => {
+                bot.send_message(msg.chat.id, "That doesn't look like a Telegram User ID (should be a number). Please try again or /cancel.")
+                        .await?;
+            }
+        },
     }
 
     Ok(())

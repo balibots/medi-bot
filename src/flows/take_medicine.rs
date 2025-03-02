@@ -68,6 +68,7 @@ pub async fn take_medicine_second_callback_handler(
     cfg: ConfigParameters,
     bot: Bot,
     dialogue: MyDialogue,
+    patient_id: String,
     q: CallbackQuery,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     if let Some(ref medicine_id) = q.data {
@@ -83,11 +84,6 @@ pub async fn take_medicine_second_callback_handler(
                 let mut medicine = Medication::get_by_id(medicine_id, con.clone()).unwrap();
                 medicine.set_taken_now(con.clone())?;
 
-                /* TODO: when should we do this ??? do we have a command for the first dose?
-                con.zadd(
-                    "medi:trigger".to_string(), self.id, next_timestamp)
-                    */
-
                 bot.edit_message_text(message.chat.id, message.id, "Got it, thanks!")
                     .await?;
 
@@ -102,6 +98,25 @@ pub async fn take_medicine_second_callback_handler(
                         .collect::<String>(),
                 )
                 .await?;
+
+                let patient = Patient::get_by_id(&patient_id, con.clone()).unwrap();
+                for telegram_user in patient.get_shared_with() {
+                    match bot
+                        .send_message(
+                            telegram_user.clone(),
+                            format!("{} just taken {}. FYI!", patient.name, medicine.medicine),
+                        )
+                        .await
+                    {
+                        Err(e) => {
+                            log::warn!(
+                                "Failed to notify shared user of intake: telegram user id {}. Error {}",
+                                &telegram_user, e
+                            )
+                        }
+                        _ => {}
+                    }
+                }
 
                 dialogue.exit().await?;
             }

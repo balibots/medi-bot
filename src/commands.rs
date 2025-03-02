@@ -3,7 +3,7 @@ use crate::{
 };
 use teloxide::{
     prelude::*,
-    types::{Message, ParseMode},
+    types::{KeyboardRemove, Message, ParseMode},
     utils::command::BotCommands,
     Bot,
 };
@@ -28,6 +28,7 @@ pub async fn help(bot: Bot, msg: Message) -> HandlerResult {
 
 pub async fn cancel(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
     bot.send_message(msg.chat.id, "Cancelling the current operation.")
+        .reply_markup(KeyboardRemove::new())
         .await?;
     dialogue.exit().await?;
     Ok(())

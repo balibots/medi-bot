@@ -2,7 +2,7 @@ use crate::{
     commands::{cancel, get_all_command, help, start},
     flows::add_medication::*,
     flows::patients::*,
-    take_medicine::*,
+    flows::take_medicine::*,
 };
 use dotenv::dotenv;
 use dptree::filter;
@@ -30,7 +30,6 @@ mod flows;
 mod frequency;
 mod medication;
 mod patient;
-mod take_medicine;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -115,8 +114,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
     use dptree::case;
 
     let command_handler = teloxide::filter_command::<Command, _>().branch(
-        case![State::Start]
-            .filter(|update: Update| update.chat().unwrap().is_private())
+        filter(|update: Update| update.chat().unwrap().is_private())
             .branch(case![Command::Help].endpoint(help))
             .branch(case![Command::Start].endpoint(start))
             .branch(case![Command::AddMedication].endpoint(start_add_medication))
@@ -184,9 +182,10 @@ async fn group_handler(bot: Bot, _dialogue: MyDialogue, msg: Message) -> Handler
 }
 
 async fn default_handler(bot: Bot, _dialogue: MyDialogue, msg: Message) -> HandlerResult {
+    log::info!("{:?}\n\n{:?}", _dialogue.get().await?.unwrap(), msg);
     bot.send_message(
         msg.chat.id,
-        "Didn't quite get that. Try /addmedication or /help!",
+        "Didn't quite get that. Try /addmedication, /patients or /help!",
     )
     .await?;
     Ok(())

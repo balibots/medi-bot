@@ -35,7 +35,9 @@ impl Frequency {
                         if let Ok(number) = token.parse::<i64>() {
                             // every 5
                             match second_token {
-                                Some(token) if token == "hour" || token == "hours" => {
+                                Some(token)
+                                    if token == "hour" || token == "hours" || token == "h" =>
+                                {
                                     Some(Frequency {
                                         hours: number,
                                         start_time: None,
@@ -60,6 +62,15 @@ impl Frequency {
                                 hours: 1,
                                 start_time: None,
                             })
+                        } else if token.ends_with("h") {
+                            let len = token.len();
+                            match &token[..len - 1].to_string().parse::<i64>() {
+                                Err(_e) => None,
+                                Ok(value) => Some(Frequency {
+                                    hours: *value,
+                                    start_time: None,
+                                }),
+                            }
                         } else {
                             None
                         }

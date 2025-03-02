@@ -65,7 +65,6 @@ impl Patient {
     }
 
     pub fn get_by_id(patient_id: &str, con: Arc<Mutex<Connection>>) -> Result<Self, RedisError> {
-        log::info!("{}", patient_id);
         con.lock()
             .unwrap()
             .get::<String, Patient>(format!("medi:patient:{}", patient_id))
@@ -90,7 +89,7 @@ impl Patient {
 
     pub fn share(
         &mut self,
-        telegram_user_id: &str,
+        telegram_user_id: u64,
         con: Arc<Mutex<Connection>>,
     ) -> Result<(), RedisError> {
         con.lock()
@@ -101,13 +100,17 @@ impl Patient {
             )
             .expect("Error adding new patient to user set array");
 
-        self.shared_with.push(telegram_user_id.to_string());
+        let str_telegram_id = telegram_user_id.to_string();
+
+        if !self.shared_with.contains(&str_telegram_id) {
+            self.shared_with.push(str_telegram_id);
+        }
 
         Ok(())
     }
 
-    pub fn get_shared_with(&self) -> &Vec<String> {
-        &self.shared_with
+    pub fn get_shared_with(&self) -> Vec<String> {
+        self.shared_with.clone().into_iter().collect()
     }
 
     pub fn generate_patient_keyboard(
@@ -119,7 +122,7 @@ impl Patient {
 
         let patients = Patient::get_my_patients(&user_id, con).unwrap();
 
-        log::info!("{:?}", patients);
+        log::info!("generating patient keyboard for {:?}", patients);
 
         for versions in patients.chunks(3) {
             let row = versions

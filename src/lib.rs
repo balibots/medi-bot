@@ -1,6 +1,6 @@
 use teloxide::macros::BotCommands;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub enum State {
     #[default]
     Start,
