@@ -84,20 +84,29 @@ pub async fn take_medicine_second_callback_handler(
                 let mut medicine = Medication::get_by_id(medicine_id, con.clone()).unwrap();
                 medicine.set_taken_now(con.clone())?;
 
-                bot.edit_message_text(message.chat.id, message.id, "Got it, thanks!")
-                    .await?;
+                let patient = Patient::get_by_id(&patient_id, con.clone()).unwrap();
 
-                let medicines =
-                    Medication::get_all_by_patient_id(&medicine.patient_id, con.clone());
-
-                bot.send_message(
+                bot.edit_message_text(
                     message.chat.id,
-                    medicines
-                        .iter()
-                        .map(|m| m.print_in_list() + "\n")
-                        .collect::<String>(),
+                    message.id,
+                    format!(
+                        "{} has just taken {} ({}). All the best for them.",
+                        patient.name, medicine.medicine, medicine.dosage
+                    ),
                 )
                 .await?;
+
+                // let medicines =
+                //     Medication::get_all_by_patient_id(&medicine.patient_id, con.clone());
+
+                // bot.send_message(
+                //     message.chat.id,
+                //     medicines
+                //         .iter()
+                //         .map(|m| m.print_in_list() + "\n")
+                //         .collect::<String>(),
+                // )
+                // .await?;
 
                 let patient = Patient::get_by_id(&patient_id, con.clone()).unwrap();
                 for telegram_user in patient.get_all_shared_users() {
@@ -108,7 +117,10 @@ pub async fn take_medicine_second_callback_handler(
                     match bot
                         .send_message(
                             telegram_user.clone(),
-                            format!("{} just taken {}. FYI!", patient.name, medicine.medicine),
+                            format!(
+                                "{} just taken {} ({}). FYI!",
+                                patient.name, medicine.medicine, medicine.dosage
+                            ),
                         )
                         .await
                     {
