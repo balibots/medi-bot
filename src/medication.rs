@@ -111,7 +111,7 @@ impl Medication {
         }
     }
 
-    fn print_can_take_next(&self) -> String {
+    pub fn print_can_take_next(&self) -> String {
         if self.can_take() {
             "Right now".to_string()
         } else {

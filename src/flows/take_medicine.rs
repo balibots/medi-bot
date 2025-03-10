@@ -90,8 +90,11 @@ pub async fn take_medicine_second_callback_handler(
                     message.chat.id,
                     message.id,
                     format!(
-                        "{} has just taken {} ({}). All the best for them.",
-                        patient.name, medicine.medicine, medicine.dosage
+                        "{} has just taken {} ({}). Next dosage {}. All the best for them.",
+                        patient.name,
+                        medicine.medicine,
+                        medicine.dosage,
+                        medicine.print_can_take_next()
                     ),
                 )
                 .await?;
