@@ -52,14 +52,14 @@ async fn main() {
     let client = redis::Client::open(env::var("REDIS_URL").expect("REDIS_URL missing"))
         .expect("Could not connect to Redis");
 
-    // bot.set_chat_menu_button()
-    //     .menu_button(teloxide::types::MenuButton::Commands)
-    //     .await
-    //     .expect("Error setting chat menu button");
+    bot.set_chat_menu_button()
+        .menu_button(teloxide::types::MenuButton::Commands)
+        .await
+        .expect("Error setting chat menu button");
 
-    // bot.set_my_commands(Command::bot_commands())
-    //     .await
-    //     .expect("Error setting my commands");
+    bot.set_my_commands(Command::bot_commands())
+        .await
+        .expect("Error setting my commands");
 
     let redis_connection = client
         .get_connection()
