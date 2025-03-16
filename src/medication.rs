@@ -1,4 +1,5 @@
 use chrono::{DateTime, TimeDelta, Utc};
+use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use teloxide::types::InlineKeyboardButton;
@@ -111,15 +112,15 @@ impl Medication {
         }
     }
 
-    pub fn print_can_take_next(&self) -> String {
+    pub fn print_can_take_next(&self, tz: &str) -> String {
         if self.can_take() {
             "Right now".to_string()
         } else {
-            let lt = DateTime::from_timestamp(self.last_taken.unwrap(), 0).unwrap()
+            let next_take = DateTime::from_timestamp(self.last_taken.unwrap(), 0).unwrap()
                 + TimeDelta::hours(self.frequency.get_hours().into());
             let now = Utc::now();
-            let dif = lt - now;
-            if dif.num_hours() > 0 {
+            let dif = next_take - now;
+            let delta = if dif.num_hours() > 0 {
                 format!(
                     "in {} hours and {} minutes",
                     dif.num_hours().to_string(),
@@ -129,11 +130,18 @@ impl Medication {
                 )
             } else {
                 format!("in {} minutes", dif.num_minutes().to_string())
+            };
+            match tz.parse::<Tz>() {
+                Err(_) => format!("{} ({})", next_take.to_string(), delta),
+                Ok(tz) => {
+                    let dt = next_take.with_timezone(&tz);
+                    format!("{} ({})", dt.to_string(), delta)
+                }
             }
         }
     }
 
-    pub fn print_in_list(&self) -> String {
+    pub fn print_in_list(&self, tz: &str) -> String {
         let can_take = if self.can_take() { "✅" } else { "🙅" };
 
         format!(
@@ -141,13 +149,13 @@ impl Medication {
             self.medicine,
             self.dosage,
             self.frequency, // TODO implement display
-            self.print_last_taken(),
-            self.print_can_take_next(),
+            self.print_last_taken(tz),
+            self.print_can_take_next(tz),
             can_take
         )
     }
 
-    pub fn print_last_taken(&self) -> String {
+    pub fn print_last_taken(&self, tz: &str) -> String {
         match self.last_taken {
             None => "Not yet".to_string(),
             Some(ts) => {
@@ -160,7 +168,13 @@ impl Medication {
                         format!("{} minutes ago", dif.num_minutes())
                     }
                     _ if dif.num_minutes() == 0 => format!("Just now"),
-                    _ => date.to_string(),
+                    _ => match tz.parse::<Tz>() {
+                        Err(_) => date.to_string(),
+                        Ok(tz) => {
+                            let dt = date.with_timezone(&tz);
+                            dt.to_string()
+                        }
+                    },
                 }
             }
         }

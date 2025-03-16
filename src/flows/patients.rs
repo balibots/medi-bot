@@ -1,7 +1,9 @@
-use crate::commands::{cancel, cancel_with_edit};
+use crate::commands::cancel_with_edit;
 use crate::medication::Medication;
+use crate::user::get_user_timezone;
 use crate::{patient::Patient, ConfigParameters, HandlerResult, MyDialogue, State};
 use chrono::DateTime;
+use chrono_tz::Tz;
 use std::error::Error;
 use teloxide::payloads::EditMessageTextSetters;
 use teloxide::prelude::*;
@@ -193,9 +195,11 @@ pub async fn patient_ops_callback_handler(
                     patient.name
                 ),
                 _ => {
+                    let tz = get_user_timezone(con.clone(), &message.chat.id.to_string());
+
                     let msg = medicines
                         .iter()
-                        .map(|m| m.print_in_list() + "\n")
+                        .map(|m| m.print_in_list(&tz) + "\n")
                         .collect::<String>();
 
                     format!("{}\nRegister a taken dosage by running /take.", msg)
@@ -359,6 +363,8 @@ pub async fn medicine_log_callback_handler(
                 )
                 .await?;
             } else {
+                let tz = get_user_timezone(con.clone(), &message.chat.id.to_string());
+                let timezone: Tz = tz.parse().unwrap();
                 bot.edit_message_text(
                     message.chat.id,
                     message.id,
@@ -368,7 +374,10 @@ pub async fn medicine_log_callback_handler(
                         log.into_iter()
                             .map(|ts| format!(
                                 " - {}\n",
-                                DateTime::from_timestamp(ts, 0).unwrap().to_string()
+                                DateTime::from_timestamp(ts, 0)
+                                    .unwrap()
+                                    .with_timezone(&timezone)
+                                    .to_string()
                             ))
                             .collect::<String>()
                     ),

@@ -1,6 +1,9 @@
 use crate::{
-    medication::Medication, patient::Patient, Command, ConfigParameters, HandlerResult, MyDialogue,
+    medication::Medication, patient::Patient, user::get_user_timezone, Command, ConfigParameters,
+    HandlerResult, MyDialogue,
 };
+use chrono_tz::Tz;
+use redis::Commands;
 use teloxide::{
     prelude::*,
     types::{KeyboardRemove, Message, ParseMode},
@@ -57,11 +60,13 @@ pub async fn get_all_command(
         .map(|p| {
             let meds = Medication::get_all_by_patient_id(&p.id, con.clone());
 
+            let tz = get_user_timezone(con.clone(), &msg.chat.id.to_string());
+
             let listprint = match meds.len() {
                 0 => " - No medications taken yet.\n".to_string(),
                 _ => meds
                     .iter()
-                    .map(|m| m.print_in_list() + "\n")
+                    .map(|m| m.print_in_list(&tz) + "\n")
                     .collect::<String>(),
             };
 
@@ -77,6 +82,39 @@ pub async fn get_all_command(
         .await?;
     } else {
         bot.send_message(msg.chat.id, outgoing_msg).await?;
+    }
+
+    Ok(())
+}
+
+pub async fn set_timezone(
+    cfg: ConfigParameters,
+    bot: Bot,
+    _: MyDialogue,
+    timezone: String,
+    msg: Message,
+) -> HandlerResult {
+    let tz: Result<Tz, chrono_tz::ParseError> = timezone.parse();
+    match tz {
+        Ok(_) => {
+            // save to redis
+            let con = cfg.redis_connection.clone();
+
+            con.lock().unwrap().set::<String, String, ()>(
+                format!("medi:{}:timezone", msg.from.unwrap().id),
+                timezone.clone(),
+            )?;
+
+            bot.send_message(msg.chat.id, format!("Timezone set for {}", &timezone))
+                .await?;
+        }
+        Err(_) => {
+            bot.send_message(
+                msg.chat.id,
+                format!("Sorry, I don't recognise the timezone: {}", timezone),
+            )
+            .await?;
+        }
     }
 
     Ok(())

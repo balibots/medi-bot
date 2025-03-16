@@ -40,8 +40,7 @@ pub enum State {
 #[derive(BotCommands, Clone)]
 #[command(
     rename_rule = "lowercase",
-    description = "These commands are supported:",
-    command_separator = "_"
+    description = "These commands are supported:"
 )]
 pub enum Command {
     #[command(description = "start interacting with the bot.")]
@@ -58,4 +57,6 @@ pub enum Command {
     Cancel,
     #[command(description = "gets all the patients and meds you have access to.")]
     GetAll,
+    #[command(description = "set the user's timezone - defaults to utc.")]
+    SetTimezone(String),
 }

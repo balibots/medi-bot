@@ -4,6 +4,7 @@ use crate::{
     flows::patients::*,
     flows::take_medicine::*,
 };
+use commands::set_timezone;
 use dotenv::dotenv;
 use dptree::filter;
 use medibot::{Command, State};
@@ -30,6 +31,7 @@ mod flows;
 mod frequency;
 mod medication;
 mod patient;
+mod user;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
@@ -50,15 +52,14 @@ async fn main() {
     let client = redis::Client::open(env::var("REDIS_URL").expect("REDIS_URL missing"))
         .expect("Could not connect to Redis");
 
-    // not sure this is working:
-    bot.set_chat_menu_button()
-        .menu_button(teloxide::types::MenuButton::Commands)
-        .await
-        .expect("Error setting chat menu button");
+    // bot.set_chat_menu_button()
+    //     .menu_button(teloxide::types::MenuButton::Commands)
+    //     .await
+    //     .expect("Error setting chat menu button");
 
-    bot.set_my_commands(Command::bot_commands())
-        .await
-        .expect("Error setting my commands");
+    // bot.set_my_commands(Command::bot_commands())
+    //     .await
+    //     .expect("Error setting my commands");
 
     let redis_connection = client
         .get_connection()
@@ -121,6 +122,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
             .branch(case![Command::GetAll].endpoint(get_all_command))
             .branch(case![Command::Take].endpoint(take_medicine_command))
             .branch(case![Command::Patients].endpoint(patients_command))
+            .branch(case![Command::SetTimezone(timezone)].endpoint(set_timezone))
             .branch(case![Command::Cancel].endpoint(cancel)),
     );
 

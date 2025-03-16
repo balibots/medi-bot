@@ -4,6 +4,7 @@ use medibot::State;
 
 use crate::commands::cancel_with_edit;
 use crate::medication::Medication;
+use crate::user::get_user_timezone;
 use crate::{patient::Patient, ConfigParameters, HandlerResult, MyDialogue};
 
 use teloxide::{
@@ -86,6 +87,8 @@ pub async fn take_medicine_second_callback_handler(
 
                 let patient = Patient::get_by_id(&patient_id, con.clone()).unwrap();
 
+                let tz = get_user_timezone(con.clone(), &message.chat.id.to_string());
+
                 bot.edit_message_text(
                     message.chat.id,
                     message.id,
@@ -94,22 +97,10 @@ pub async fn take_medicine_second_callback_handler(
                         patient.name,
                         medicine.medicine,
                         medicine.dosage,
-                        medicine.print_can_take_next()
+                        medicine.print_can_take_next(&tz)
                     ),
                 )
                 .await?;
-
-                // let medicines =
-                //     Medication::get_all_by_patient_id(&medicine.patient_id, con.clone());
-
-                // bot.send_message(
-                //     message.chat.id,
-                //     medicines
-                //         .iter()
-                //         .map(|m| m.print_in_list() + "\n")
-                //         .collect::<String>(),
-                // )
-                // .await?;
 
                 let patient = Patient::get_by_id(&patient_id, con.clone()).unwrap();
                 for telegram_user in patient.get_all_shared_users() {
@@ -121,8 +112,11 @@ pub async fn take_medicine_second_callback_handler(
                         .send_message(
                             telegram_user.clone(),
                             format!(
-                                "{} just taken {} ({}). FYI!",
-                                patient.name, medicine.medicine, medicine.dosage
+                                "{} just taken {} ({}). Next dosage {}. FYI!",
+                                patient.name,
+                                medicine.medicine,
+                                medicine.dosage,
+                                medicine.print_can_take_next(&tz)
                             ),
                         )
                         .await

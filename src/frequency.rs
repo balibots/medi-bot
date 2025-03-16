@@ -9,12 +9,12 @@ pub struct Frequency {
 }
 
 impl Frequency {
-    // pub fn new(hours: i64) -> Frequency {
-    //     Frequency {
-    //         hours,
-    //         start_time: None,
-    //     }
-    // }
+    pub fn new(hours: i64) -> Frequency {
+        Frequency {
+            hours,
+            start_time: None,
+        }
+    }
 
     pub fn get_hours(&self) -> i64 {
         return self.hours;
