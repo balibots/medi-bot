@@ -187,7 +187,10 @@ pub async fn patient_ops_callback_handler(
             dialogue.exit().await?;
         } else if op == "list_medication" {
             let patient = Patient::get_by_id(&patient_id, con.clone()).expect("Patient not found");
-            let medicines = Medication::get_all_by_patient_id(&patient_id, con.clone());
+            let mut medicines = Medication::get_all_by_patient_id(&patient_id, con.clone());
+
+            medicines.sort_by_key(|m| m.last_taken);
+            medicines.reverse();
 
             let msg = match medicines.len() {
                 0 => format!(

@@ -58,9 +58,12 @@ pub async fn get_all_command(
     let outgoing_msg = all_patients
         .iter()
         .map(|p| {
-            let meds = Medication::get_all_by_patient_id(&p.id, con.clone());
+            let mut meds = Medication::get_all_by_patient_id(&p.id, con.clone());
 
             let tz = get_user_timezone(con.clone(), &msg.chat.id.to_string());
+
+            meds.sort_by_key(|m| m.last_taken);
+            meds.reverse();
 
             let listprint = match meds.len() {
                 0 => " - No medications taken yet.\n".to_string(),

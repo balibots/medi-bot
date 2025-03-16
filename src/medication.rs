@@ -112,12 +112,22 @@ impl Medication {
         }
     }
 
+    pub fn get_can_take_next_date(&self) -> DateTime<Utc> {
+        if self.can_take() {
+            Utc::now()
+        } else {
+            let next_take = DateTime::from_timestamp(self.last_taken.unwrap(), 0).unwrap()
+                + TimeDelta::hours(self.frequency.get_hours().into());
+
+            next_take
+        }
+    }
+
     pub fn print_can_take_next(&self, tz: &str) -> String {
         if self.can_take() {
             "Right now".to_string()
         } else {
-            let next_take = DateTime::from_timestamp(self.last_taken.unwrap(), 0).unwrap()
-                + TimeDelta::hours(self.frequency.get_hours().into());
+            let next_take = self.get_can_take_next_date();
             let now = Utc::now();
             let dif = next_take - now;
             let delta = if dif.num_hours() > 0 {
